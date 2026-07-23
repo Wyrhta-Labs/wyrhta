@@ -1,0 +1,106 @@
+# Wyrhta Labs — Strategy & Roadmap
+
+**Status:** accepted 2026-07-23 · This document is the source of truth. The public
+website's roadmap is a downstream rendering of it and gets corrected to match —
+never the other way around.
+
+## Doctrine
+
+1. **Own household first.** The primary user for the next 12 months is our own
+   household. External self-hosters become a *gate* ("ready for others"), not a
+   driver, roughly at the 1.0 mark.
+2. **The wife is the acceptance gate.** A release is launch-ready when the
+   household's members would actually adopt it — not when tests are green.
+3. **External systems of record, provider abstractions** — see
+   [ADR 0001](decisions/0001-external-systems-of-record-behind-providers.md).
+   M365 owns calendars, To Do owns everyday tasks; Heorth mirrors and enriches.
+   Providers are pluggable from day one; multi-provider choice (Google, CalDAV,
+   Google Tasks, partner project) is a 2.0 commitment.
+4. **Hub and satellites.** Heorth is the household hub. KithLedger and Feoh are
+   independent API-first services (own repo, API, MCP) that Heorth consumes via
+   their APIs. Feoh graduates from Heorth module to satellite (see Phase 3) and
+   grows into a full personal-finance service (checking accounts, investments,
+   retirement projections).
+5. **Identity: A-then-B** — see
+   [ADR 0002](decisions/0002-cross-service-identity-a-then-b.md). Satellites hold
+   no member accounts (service API keys only) until they grow real UIs, then they
+   accept Heorth-issued member JWTs.
+6. **Core discipline (`@wyrhta/core`):**
+   - Demand-driven only — features land when a consumer concretely needs them.
+   - Every change ships as a semver tag + changelog entry (pre-1.0: minor may
+     break, patch is safe). Consumers upgrade by deliberate pin-bump.
+   - A README states what core is and is not (no business domains, no UI).
+7. **Primary surface is the Hearth View** — the kitchen touchscreen. The weekly
+   meal-plan-beside-calendar view is the adoption hook; calendar/task sync is the
+   plumbing that makes it truthful. The phone PWA is the companion (shopping
+   list, on-the-go capture).
+
+## Roadmap
+
+### Phase 0 — Housekeeping (cheap, can run parallel to Phase 1)
+
+- KithLedger: tag the implemented-but-unreleased work (web UI, security
+  hardening) as **0.2**.
+- Heorth: finish the Library module's unchecked verification steps.
+- Core: **v0.1.2** — README, CHANGELOG, fix `CORE_VERSION`/package-version drift.
+
+### Phase 1 — Acceptance release (Heorth 0.2)
+
+The smallest set that gets the system adopted at home:
+
+- **Calendar:** read-only mirror of M365 personal + family calendars via a
+  `CalendarProvider` interface (Graph is the first provider). No write-back yet.
+- **Tasks:** sync with Microsoft To Do via a `TaskProvider` interface. Everyday
+  tasks are mirrored; Heorth may create tasks outward.
+- **PWA:** installable on iOS homescreen (Android later); responsive.
+- **Hearth View:** the headline — week/month with meals + calendar + current
+  items, wall-touchscreen-first.
+
+Plans: [M365 integration](plans/m365-integration.md) ·
+[Hearth View + PWA](plans/hearth-view-pwa.md)
+
+**Exit criterion:** spouse acceptance.
+
+### Phase 2 — Deployment
+
+Homelab deployment (existing HAProxy FQDN → container), Postgres with backups,
+seed the real household, live with it. Learnings from real use reprioritise
+everything below. Chores/feature work does not resume until deployed.
+
+### Phase 3 — Feoh extraction
+
+- New repo `Wyrhta-Labs/Feoh`: own API, MCP, Postgres, deployment.
+- Heorth keeps a thin finance surface consuming Feoh's API with a service key
+  (ADR 0002 Phase A).
+- Explicitly *after* Phase 2 — a re-architecture never sits on the critical path
+  to first deployment.
+
+### Phase 4 — Ethel v1
+
+The physical property domain (OE *ēðel*, rune ᛟ — immovable wealth, Feoh's
+counterpart): assets/appliances **including vehicles**, rooms, Maintenance Plans
+(projecting due work into the task provider), and service contacts backed by
+KithLedger — the first real cross-service integration.
+
+### Phase 5+ — toward 2.0
+
+Unordered until Phase 2 learnings land:
+
+- Feoh growth: checking accounts for daily life, investments, retirement
+  projection strategies.
+- Calendar write-back (provider phase 2).
+- Provider matrix: Google Calendar, CalDAV; Google Tasks and the partner task
+  project.
+- **Office** module: household document management (until then, documents stay
+  in Library).
+- Identity Phase B: Heorth-issued member JWTs; satellite UIs.
+- Hearth View device tokens (wall display without login ceremony).
+- Android PWA polish; localisation (DE first).
+- Website correction pass: align copy with this document (Feoh as satellite is
+  now true-in-target; fictional journal personas reviewed against the "one
+  maker" honesty principle).
+
+## Out of scope until further notice
+
+Kids'-chores features (children are out of the house), multi-household, plugin
+runtime, hosted offering, federation.

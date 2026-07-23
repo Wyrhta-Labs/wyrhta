@@ -17,11 +17,21 @@ _(`website-v0` is intentionally out of scope for the current concept work.)_
 
 ## Structure of these docs
 
+- [`strategy.md`](strategy.md) — the long-term strategy and phased roadmap.
+  **Source of truth**; the public website follows it.
 - `decisions/` — Architecture Decision Records (ADRs). One file per decision that
   affects more than one service.
+- `plans/` — concept plans for upcoming phases, executed in the service repos.
+- [`../CONTEXT.md`](../CONTEXT.md) — the cross-service glossary.
+
+## Settled (see strategy.md and ADRs)
+
+Shared household identity (ADR 0002: service keys now, Heorth-issued SSO later),
+external systems of record behind providers (ADR 0001), Feoh's graduation to an
+independent service, `@wyrhta/core` release discipline.
 
 ## Open questions to work through
 
-_To be filled in as the concept develops — e.g. how the services share a household
-identity, how data flows between Heorth and KithLedger, how `@wyrhta/core` versioning
-is coordinated across consumers._
+- Heorth ↔ KithLedger data flow specifics for Ethel's service contacts (Phase 4).
+- The per-plan open questions listed at the end of each file in `plans/`.
+- How/when the website correction pass happens (Phase 5+ backlog).
