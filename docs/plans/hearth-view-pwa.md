@@ -51,11 +51,16 @@ supermarket trip? That — not the test suite — closes Phase 1.
 
 ## Questions (all resolved 2026-07-23)
 
-1. ~~Which device is the kitchen screen?~~ Resolved: a **dedicated Android
-   tablet running Fully Kiosk Browser** (landscape, ~10–11", wall-mounted).
-   Not yet purchased — buy before Hearth View UI work starts so layout targets
-   the real screen. Fully Kiosk owns wake/dimming/crash-recovery; Heorth just
-   serves `/hearth`.
+1. ~~Which device is the kitchen screen?~~ Resolved: **two kiosk targets.**
+   Primary: a dedicated **Android tablet running Fully Kiosk Browser**
+   (landscape, ~10–11", wall-mounted; not yet purchased — buy before Hearth
+   View UI work starts so layout targets the real screen). Fully Kiosk owns
+   wake/dimming/crash-recovery; Heorth just serves `/hearth`.
+   Secondary: a **Raspberry Pi + touchscreen** running Chromium in kiosk mode.
+   Pi touchscreens are smaller (7–8" class), so `/hearth` needs a **compact
+   layout variant** (today/next focus rather than the full week grid). The Pi's
+   kiosk plumbing (Chromium flags, screen blanking, autostart) is deployment
+   config, not Heorth code — document it in the ops runbook when Phase 2 lands.
 2. ~~Meal plan editing on the wall?~~ Resolved: **read-mostly wall, one native
    edit.** Weekly planning (recipe browsing, list generation) happens on
    desktop/phone; the wall shows the result, opens recipes for cooking, marks
