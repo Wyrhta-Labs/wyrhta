@@ -1,0 +1,21 @@
+# --- Independent project repos (tracked in their own GitHub repos, not here) ---
+/wyrhta-core/
+/Heorth/
+/KithLedger/
+/website-v0/
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# --- Node (in case any tooling lands at root) ---
+node_modules/
+npm-debug.log*
+
+# --- Local Claude settings (personal overrides) ---
+.claude/settings.local.json
