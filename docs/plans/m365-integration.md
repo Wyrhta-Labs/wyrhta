@@ -1,6 +1,6 @@
 # Plan — Microsoft 365 integration (Calendar mirror + To Do sync)
 
-**Phase:** 1 (acceptance release) · **Governing decision:** ADR 0001
+**Phase:** 2 (acceptance release) · **Governing decision:** ADR 0001
 **Level:** concept plan. Implementation happens in the Heorth repo; this captures
 the cross-cutting design so a Heorth session can execute it.
 
@@ -37,7 +37,7 @@ auth path.
   nextToken}` — delta-based, provider-agnostic event shape mapped to Heorth's
   calendar domain. Graph implementation uses `/calendarView/delta` per calendar.
 - `TaskProvider`: `pullChanges(...)` plus `createTask(...)` (outward projection —
-  needed by Maintenance Plans in Phase 4, useful for quick-capture in Phase 1).
+  needed by Maintenance Plans in Phase 4, useful for quick-capture in Phase 2).
 - Native Heorth events remain possible; mirrored items carry `(provider,
   externalId, memberAccount)` and are read-only in Heorth during phase 1.
 

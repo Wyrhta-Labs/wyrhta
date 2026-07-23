@@ -18,7 +18,7 @@ never the other way around.
    Google Tasks, partner project) is a 2.0 commitment.
 4. **Hub and satellites.** Heorth is the household hub. KithLedger and Feoh are
    independent API-first services (own repo, API, MCP) that Heorth consumes via
-   their APIs. Feoh graduates from Heorth module to satellite (see Phase 3) and
+   their APIs. Feoh graduates from Heorth module to satellite (see Phase 1) and
    grows into a full personal-finance service (checking accounts, investments,
    retirement projections).
 5. **Identity: A-then-B** — see
@@ -37,14 +37,28 @@ never the other way around.
 
 ## Roadmap
 
-### Phase 0 — Housekeeping (cheap, can run parallel to Phase 1)
+### Phase 0 — Housekeeping (cheap, can run parallel to Phases 1–2)
 
 - KithLedger: tag the implemented-but-unreleased work (web UI, security
   hardening) as **0.2**.
 - Heorth: finish the Library module's unchecked verification steps.
 - Core: **v0.1.2** — README, CHANGELOG, fix `CORE_VERSION`/package-version drift.
 
-### Phase 1 — Acceptance release (Heorth 0.2)
+### Phase 1 — Feoh extraction
+
+- New repo `Wyrhta-Labs/Feoh`: own API, MCP, own Postgres **database** (shared
+  homelab cluster is fine); Heorth keeps the finance UI, its backend proxying to
+  Feoh with a service key (ADR 0002 Phase A). Acceptance test: **the household
+  cannot tell it happened.**
+- Deliberately *before* the acceptance release and any deployment — moved ahead
+  of the original post-deployment slot (2026-07-23 reversal) because pre-
+  deployment extraction needs **no data migration at all**, Feoh is at its
+  smallest, and the `FeohClient` proxy becomes the template for all satellite
+  consumption before Phase 2's provider work lands.
+- Ships as **Heorth 0.2** ("no functional change") + **Feoh 0.1.0**.
+- Details: [Feoh extraction plan](plans/feoh-extraction.md).
+
+### Phase 2 — Acceptance release (Heorth 0.3)
 
 The smallest set that gets the system adopted at home:
 
@@ -61,19 +75,11 @@ Plans: [M365 integration](plans/m365-integration.md) ·
 
 **Exit criterion:** spouse acceptance.
 
-### Phase 2 — Deployment
+### Phase 3 — Deployment
 
-Homelab deployment (existing HAProxy FQDN → container), Postgres with backups,
-seed the real household, live with it. Learnings from real use reprioritise
-everything below. Chores/feature work does not resume until deployed.
-
-### Phase 3 — Feoh extraction
-
-- New repo `Wyrhta-Labs/Feoh`: own API, MCP, Postgres, deployment.
-- Heorth keeps a thin finance surface consuming Feoh's API with a service key
-  (ADR 0002 Phase A).
-- Explicitly *after* Phase 2 — a re-architecture never sits on the critical path
-  to first deployment.
+Homelab deployment (existing HAProxy FQDN → containers, now incl. Feoh), Postgres
+with backups, seed the real household, live with it. Learnings from real use
+reprioritise everything below. Feature work does not resume until deployed.
 
 ### Phase 4 — Ethel v1
 
@@ -82,9 +88,13 @@ counterpart): assets/appliances **including vehicles**, rooms, Maintenance Plans
 (projecting due work into the task provider), and service contacts backed by
 KithLedger — the first real cross-service integration.
 
+Prerequisite: **KithLedger's MCP moves from stdio to HTTP transport** (satellite
+convention: MCP over HTTP, stdio for local dev only) so it deploys as a satellite
+before Ethel consumes it.
+
 ### Phase 5+ — toward 2.0
 
-Unordered until Phase 2 learnings land:
+Unordered until Phase 3 learnings land:
 
 - Feoh growth: checking accounts for daily life, investments, retirement
   projection strategies.

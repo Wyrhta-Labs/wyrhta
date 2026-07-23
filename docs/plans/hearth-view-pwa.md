@@ -1,6 +1,6 @@
 # Plan — Hearth View + PWA
 
-**Phase:** 1 (acceptance release)
+**Phase:** 2 (acceptance release)
 **Level:** concept plan. Implementation happens in the Heorth repo (`web/`).
 
 ## Goal
@@ -47,7 +47,7 @@ PWA as the companion (shopping list in the supermarket, quick capture).
 
 Mounted on the kitchen screen for a normal week: does the household check it
 each morning without being asked, and does the shopping list survive one real
-supermarket trip? That — not the test suite — closes Phase 1.
+supermarket trip? That — not the test suite — closes Phase 2.
 
 ## Questions (all resolved 2026-07-23)
 
@@ -60,7 +60,7 @@ supermarket trip? That — not the test suite — closes Phase 1.
    Pi touchscreens are smaller (7–8" class), so `/hearth` needs a **compact
    layout variant** (today/next focus rather than the full week grid). The Pi's
    kiosk plumbing (Chromium flags, screen blanking, autostart) is deployment
-   config, not Heorth code — document it in the ops runbook when Phase 2 lands.
+   config, not Heorth code — document it in the ops runbook when Phase 3 lands.
 2. ~~Meal plan editing on the wall?~~ Resolved: **read-mostly wall, one native
    edit.** Weekly planning (recipe browsing, list generation) happens on
    desktop/phone; the wall shows the result, opens recipes for cooking, marks

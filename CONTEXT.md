@@ -71,6 +71,13 @@ history, links to manuals). Projects due work outward as Tasks in the external
 task service.
 _Avoid_: recurring task (that's a Task concern)
 
+**Party**:
+A person or entity referenced in Feoh's books (who paid, who a split is
+between, a payee). Members are parties whose truth lives in Heorth (Feoh caches
+only id + display name); external parties may optionally cross-reference a
+KithLedger person, never merge with one.
+_Avoid_: contact, payee (as a model name)
+
 **Hearth View**:
 Heorth's always-on kitchen-touchscreen surface: glanceable week/month with meal
 plan beside the family calendar and what's currently due. The primary household
