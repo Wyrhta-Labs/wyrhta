@@ -49,11 +49,22 @@ Mounted on the kitchen screen for a normal week: does the household check it
 each morning without being asked, and does the shopping list survive one real
 supermarket trip? That — not the test suite — closes Phase 1.
 
-## Open questions (grill before implementation)
+## Questions (all resolved 2026-07-23)
 
-1. Which device is the kitchen screen (iPad? mounted Android tablet? Pi +
-   touchscreen)? Determines browser quirks, kiosk mode, and idle/wake handling.
-2. Meal plan editing on the Hearth View itself, or plan on desktop / consume on
-   the wall?
-3. Do completed To Do tasks disappear from the Hearth View immediately, or show
-   as struck-through for the day (family visibility of "who did what")?
+1. ~~Which device is the kitchen screen?~~ Resolved: a **dedicated Android
+   tablet running Fully Kiosk Browser** (landscape, ~10–11", wall-mounted).
+   Not yet purchased — buy before Hearth View UI work starts so layout targets
+   the real screen. Fully Kiosk owns wake/dimming/crash-recovery; Heorth just
+   serves `/hearth`.
+2. ~~Meal plan editing on the wall?~~ Resolved: **read-mostly wall, one native
+   edit.** Weekly planning (recipe browsing, list generation) happens on
+   desktop/phone; the wall shows the result, opens recipes for cooking, marks
+   "cooked" — and supports exactly one edit gesture: **drag/swap meals between
+   days**. Full planning-on-the-wall is a possible post-deployment upgrade,
+   driven by observed use, not built speculatively.
+3. ~~Completed tasks: vanish or strike through?~~ Resolved: **struck-through
+   until midnight, capped.** Show the last few completed items per day (3–5,
+   rest collapsed behind a "+N done"), greyed and crossed out; reset overnight.
+   Completions arriving via To Do sync strike through within a poll cycle.
+   No streaks, counters, or gamification — "quiet by design" applies to praise
+   as much as to nagging.

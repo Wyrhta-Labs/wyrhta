@@ -24,9 +24,12 @@ auth path.
   device-code flow as fallback). Heorth stores refresh tokens **encrypted at
   rest** (Library's credential-crypto pattern generalises; consider moving that
   helper to core if reuse is verbatim).
-- The shared **family calendar** may be a group/shared calendar — verify which
-  kind it actually is in the tenant early, since shared-calendar delegated access
-  is the classic Graph gotcha. Verify against the real tenant in week one.
+- The **family calendar is a shared mailbox calendar** (confirmed) and is read
+  **app-only**: application permission `Calendars.Read`, constrained to just that
+  mailbox by an `ApplicationAccessPolicy`, reading
+  `/users/{sharedMailbox}/calendarView`. Deliberate second auth mode: the family
+  calendar — the Hearth View's most important feed — must not hang off any one
+  member's refresh token.
 
 ## Provider interfaces (in Heorth)
 
@@ -55,9 +58,16 @@ auth path.
 Calendar write-back; attendee/invite handling; webhooks; providers other than
 Graph (the interface is the preparation, Google/CalDAV land toward 2.0).
 
-## Open questions (grill before implementation)
+## Questions (all resolved 2026-07-23)
 
-1. What kind of calendar is the "family calendar" in the tenant (shared mailbox,
-   M365 group, or a shared personal calendar)?
-2. Which To Do lists sync — all, or an allowlist per member?
-3. Token loss UX: what happens on the Hearth View when a refresh token dies?
+1. ~~What kind of calendar is the family calendar?~~ Resolved: shared mailbox,
+   read app-only with `ApplicationAccessPolicy` (see auth model above).
+2. ~~Which To Do lists sync?~~ Resolved: **allowlist per member**, chosen at
+   connect time — nothing syncs by default (work lists / "Flagged Email" stay
+   out). One designated **shared household list** is the write-target for tasks
+   Heorth creates (quick capture; later Ethel's maintenance projections).
+3. ~~Token loss UX?~~ Resolved: **stale badge on the wall, fix on the phone.**
+   A dead member token greys out that member's feed with "last synced X ago";
+   the member's own phone PWA nudges and hosts the reconnect flow. Never re-auth
+   on the wall. The family calendar is app-only and immune to member token loss.
+   The Hearth View must never look current while a feed is dead.
