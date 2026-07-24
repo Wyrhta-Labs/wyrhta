@@ -51,16 +51,16 @@ supermarket trip? That — not the test suite — closes Phase 2.
 
 ## Questions (all resolved 2026-07-23)
 
-1. ~~Which device is the kitchen screen?~~ Resolved: **two kiosk targets.**
-   Primary: a dedicated **Android tablet running Fully Kiosk Browser**
-   (landscape, ~10–11", wall-mounted; not yet purchased — buy before Hearth
-   View UI work starts so layout targets the real screen). Fully Kiosk owns
-   wake/dimming/crash-recovery; Heorth just serves `/hearth`.
-   Secondary: a **Raspberry Pi + touchscreen** running Chromium in kiosk mode.
-   Pi touchscreens are smaller (7–8" class), so `/hearth` needs a **compact
-   layout variant** (today/next focus rather than the full week grid). The Pi's
-   kiosk plumbing (Chromium flags, screen blanking, autostart) is deployment
-   config, not Heorth code — document it in the ops runbook when Phase 3 lands.
+1. ~~Which device is the kitchen screen?~~ Resolved (corrected 2026-07-24):
+   **one kiosk target — a Raspberry Pi driving a ~21.5" Full-HD touchscreen**
+   (e.g. Waveshare 21.5" FHD, 1920×1080, landscape, wall-mounted; not yet
+   purchased). Chromium in kiosk mode; the kiosk plumbing (flags, blanking,
+   autostart, watchdog) is deployment config for the Phase 3 ops runbook —
+   Heorth just serves `/hearth`. The earlier Android-tablet + Fully-Kiosk plan
+   is dropped, and no compact kiosk layout variant is needed: at 21.5" FHD the
+   full week grid is the design target (generous touch targets at arm's
+   length; verify final resolution when hardware arrives). The phone PWA
+   remains the small-screen surface.
 2. ~~Meal plan editing on the wall?~~ Resolved: **read-mostly wall, one native
    edit.** Weekly planning (recipe browsing, list generation) happens on
    desktop/phone; the wall shows the result, opens recipes for cooking, marks
