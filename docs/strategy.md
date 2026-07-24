@@ -61,7 +61,7 @@ Shipped: core v0.1.2 (README, CHANGELOG, version-drift fix), KithLedger v0.2.0
 - Ships as **Heorth 0.2** ("no functional change") + **Feoh 0.1.0**.
 - Details: [Feoh extraction plan](plans/feoh-extraction.md).
 
-### Phase 2 — Acceptance release (Heorth 0.3)
+### Phase 2 — Acceptance release ✅ CODE DONE 2026-07-24 (Heorth v0.3.0) — awaiting real-tenant smoke + hardware + spouse gate
 
 The smallest set that gets the system adopted at home:
 
