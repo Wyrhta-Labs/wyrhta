@@ -24,6 +24,14 @@ _(`website-v0` is intentionally out of scope for the current concept work.)_
 - `plans/` — concept plans for upcoming phases, executed in the service repos.
 - [`../CONTEXT.md`](../CONTEXT.md) — the cross-service glossary.
 
+## Cross-service conventions
+
+- **Dev port allocation** (so all services run side by side locally):
+  Heorth API **3000** / web 5173 · Feoh API **3001** · KithLedger API
+  **3002** / web 5174. Postgres: one local cluster on 5432, one database per
+  service (`heorth`, `feoh`, `kithledger`). Container-internal API ports stay
+  3000; the allocation applies to host/dev ports.
+
 ## Settled (see strategy.md and ADRs)
 
 Shared household identity (ADR 0002: service keys now, Heorth-issued SSO later),
