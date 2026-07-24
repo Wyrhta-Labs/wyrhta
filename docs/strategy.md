@@ -37,14 +37,17 @@ never the other way around.
 
 ## Roadmap
 
-### Phase 0 — Housekeeping (cheap, can run parallel to Phases 1–2)
+### Phase 0 — Housekeeping ✅ DONE 2026-07-23/24
+
+Shipped: core v0.1.2 (README, CHANGELOG, version-drift fix), KithLedger v0.2.0
+(plus retroactive v0.1.0 tag, stray-tag cleanup), Heorth Library verification.
 
 - KithLedger: tag the implemented-but-unreleased work (web UI, security
   hardening) as **0.2**.
 - Heorth: finish the Library module's unchecked verification steps.
 - Core: **v0.1.2** — README, CHANGELOG, fix `CORE_VERSION`/package-version drift.
 
-### Phase 1 — Feoh extraction
+### Phase 1 — Feoh extraction ✅ DONE 2026-07-24 (Feoh v0.1.0, Heorth v0.2.0 + retroactive v0.1.0)
 
 - New repo `Wyrhta-Labs/Feoh`: own API, MCP, own Postgres **database** (shared
   homelab cluster is fine); Heorth keeps the finance UI, its backend proxying to
