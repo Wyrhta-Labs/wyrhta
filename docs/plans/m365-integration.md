@@ -31,6 +31,21 @@ auth path.
   calendar — the Hearth View's most important feed — must not hang off any one
   member's refresh token.
 
+## Canonical environment variables (already provisioned in local dev)
+
+Heorth's `.env.example` carries the placeholders; the real values live in the
+local `.env` (dev — provisioned 2026-07-24 with the original client secret;
+rotation happens at home-network deployment) and later in deployment secrets:
+
+- `M365_TENANT_ID`, `M365_CLIENT_ID`, `M365_CLIENT_SECRET`
+- `M365_REDIRECT_URI` (dev: `http://localhost:4000/api/v1/m365/callback`;
+  prod: `https://heorth.home.example.com/api/v1/m365/callback`)
+- `M365_FAMILY_MAILBOX` (the shared-mailbox SMTP address, app-only calendar)
+- `M365_SHARED_TODO_LIST` (display name of the shared write-target list)
+
+Phase 2 implementation MUST bind to these names (extend Heorth's env schema —
+they are intentionally not in the schema yet).
+
 ## Provider interfaces (in Heorth)
 
 - `CalendarProvider`: `listCalendars()`, `pullChanges(syncToken?) → {events[],
