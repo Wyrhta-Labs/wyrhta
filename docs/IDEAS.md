@@ -56,6 +56,17 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
 
 <!-- - **<title>** → [`plans/<file>.md`](plans/<file>.md) · YYYY-MM-DD -->
 
+- **Defer server-side LLM features; run a conservative DB first** →
+  [ADR 0006](decisions/0006-no-server-side-generative-inference-and-a-conservative-base-db.md)
+  (proposed) · 2026-07-27 — two mechanical rules: (1) no **generative** model as a runtime
+  dependency of the base product — summarisation, M365 mail→interaction extraction, NL→query
+  all deferred to a future opt-in tier; deterministic **encoders are permitted**, and
+  generative value stays available **via MCP where the model is the client**
+  ("intelligence is a client concern; the server serves data"). (2) The base DB uses only
+  extensions **bundled in the official Postgres image**, while one shared Postgres container
+  serves `heorth`/`feoh`/`kithledger` — revisited when the cluster image changes on its own
+  merits or KithLedger gets its own instance. Preventive: nothing planned is affected.
+
 - **pgvector for the KithLedger knowledge graph** →
   [ADR 0005](decisions/0005-semantic-retrieval-with-pgvector.md) (proposed) · 2026-07-27
   — yes for semantic note search + MCP/LLM retrieval; **no** for dedupe (`pg_trgm` +
@@ -64,8 +75,9 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
   single-sourced. **Exact search, no ANN index** at household scale — which dissolves the
   filtered-ANN recall leak; HNSW documented but deferred past ~100k rows. Multilingual
   local model by default. Switchable off in ENV down to a plain `postgres:18` image, with
-  FTS as the working fallback. Postgres **18.4** now (ungated); don't wait for 19. Build
-  gated on ADR 0004 accepted + ADR 0002 Phase B.
+  FTS as the working fallback. Postgres **18.4** now (ungated); don't wait for 19.
+  **Deferred** behind ADR 0006's shared-cluster image rule, then ADR 0004 accepted +
+  ADR 0002 Phase B. The **FTS + `pg_trgm` tier is ungated** and is the near-term work.
 
 - **Per-member access control (KithLedger knowledge graph)** →
   [ADR 0004](decisions/0004-per-member-access-control-in-the-knowledge-graph.md)

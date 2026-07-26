@@ -1,6 +1,15 @@
 # 0005 — Semantic retrieval with pgvector (KithLedger first)
 
-**Status:** proposed (2026-07-27)
+**Status:** proposed — **deferred** behind
+[ADR 0006](0006-no-server-side-generative-inference-and-a-conservative-base-db.md)
+(2026-07-27)
+
+> **Deferral note.** ADR 0006 keeps the base database on the official Postgres image
+> (bundled extensions only) while the homelab runs **one shared Postgres container** for
+> `heorth` + `feoh` + `kithledger`. pgvector therefore waits. The reasoning below is
+> **unaffected** — ADR 0006 permits deterministic embedding encoders as ordinary
+> dependencies, so it is the *extension*, not the idea, that is deferred. The
+> **FTS + `pg_trgm` tier is ungated** and is the near-term work.
 
 ## Context
 
@@ -126,22 +135,32 @@ rows, or when exact search exceeds a measured latency budget):
 **Regardless of index strategy, aggregates and "top N similar" obey ADR 0004 rule 4** —
 computed over the caller's visible subgraph only. A similarity list is an aggregate.
 
-### 4. Provider seam: split by doctrine, not wholesale into core
+### 4. Provider seam: split three ways, so ADR 0003 rule 6 stays mechanical
 
-- **`@wyrhta/core`** takes the **DB conventions** — the vector column convention, the
-  `embedded_at` staleness pair, `CREATE EXTENSION vector` bootstrap, and the index
-  recipes including the partial-household index — plus the `EmbeddingProvider`
-  *interface type*. Root `CLAUDE.md` already assigns DB conventions to core, so this is
-  not a provider promotion.
-- **The consumer (KithLedger)** holds the concrete implementations (Ollama, OpenAI).
+| Piece | Home | Why |
+|---|---|---|
+| Capability-gated migration helper + extension bootstrap (part 7 machinery) | **`@wyrhta/core`** | Stable shape, reused verbatim, and it is a **DB convention** — a category root `CLAUDE.md` already assigns to core. Not a provider, so no rule 6 question arises. |
+| `halfvec` column + staleness convention | **`@wyrhta/core`** | Same: boring, stable, conventional. |
+| `EmbeddingProvider` interface + implementations (Ollama, OpenAI) | **KithLedger** | Most likely to churn. Promote to core on **second demand** *or* on interface stability — whichever comes first. |
 
-This is deliberately narrower than "embeddings go in core," to keep
-[ADR 0003](0003-external-reference-feeds-behind-providers.md) rule 6 (providers live
-in the consumer; core gains nothing until a second service needs them) intact rather
-than quietly eroded. The distinction: weather is structurally Heorth-shaped
-(location-anchored, one plausible consumer), whereas embeddings-over-free-text is
-structurally generic — Heorth has recipes and notes, Feoh has transaction
-descriptions. A second consumer is genuinely likely here; for weather it was not.
+An earlier draft put the interface in core too, justified by "embeddings-over-free-text
+is structurally generic, so a second consumer is likely." That is rejected as a
+*prediction*, and
+[ADR 0003](0003-external-reference-feeds-behind-providers.md) rule 6 exists precisely to
+stop abstractions being placed on predictions. Its value is that it is **mechanical** —
+a named trigger, no judgment — and a judgment-based exception ("structurally generic")
+would be citable for almost anything and would dull it for every future case.
+
+Two further reasons the prediction was weak:
+
+1. **Release cadence.** Root `CLAUDE.md` is explicit that core reaches consumers only by
+   cutting a tag and bumping `package.json`. A seam in core makes every iteration cost
+   tag → bump → install, during exactly the phase when the interface churns most.
+2. **The generic half is the boring half.** Plausible second consumers do not share the
+   interesting part: KithLedger has ADR 0004 per-item visibility, Heorth recipes are
+   household-wide, Feoh transaction descriptions likely have no per-item visibility at
+   all. What generalises is the column and staleness convention; the visibility-joined
+   retrieval pattern — where the design content lives — is KithLedger-specific.
 
 **Local default, external opt-in.** Private notes must not leave the house by default —
 anything else contradicts ADR 0004's premise. External providers are a per-deployment
@@ -158,10 +177,26 @@ models at runtime."
 - **Never compare vectors across models.** Store `embedding_model` per row; rows whose
   model ≠ current config are treated as **unembedded** — excluded from search and
   queued. This makes a model migration resumable and safe to run online.
-- **The default model must be multilingual**, following the DE-first doctrine in
-  ADR 0003: `bge-m3` or `multilingual-e5-large` (both 1024), **not**
-  `nomic-embed-text` (768, English-centric), which would underperform on exactly the
-  German notes the household actually writes.
+- **Pin the model by digest, not by tag.** Ollama tags move. A silently-updated model
+  yields silently incomparable vectors in one table, and an `embedding_model` column
+  recording only `bge-m3` will not catch it. Store the resolved revision.
+- **The model requirement, not a named winner:** multilingual covering **German +
+  English**, CPU-viable, 384–1024 dimensions. Monolingual English models are excluded
+  because household notes code-switch mid-sentence, which is exactly where they degrade
+  — that argument is robust independent of which model wins. The specific choice is
+  made **at build time** from then-current benchmarks plus a smoke test on real notes;
+  naming a winner in a document written a year ahead of implementation would be false
+  precision.
+
+**Model choice is cheaper to reverse than it looks.** A full re-embed at household
+scale is minutes of CPU time, and because part 2 uses side tables a dimension change is
+`DROP TABLE` + recreate + re-embed — no `ALTER COLUMN TYPE` on a hot domain table, no
+lock concerns. What is *not* cheap is anything **derived** from embeddings that is
+persisted with user-visible history: cached similarity lists, clusters, or
+introduction suggestions the member has acted on or dismissed. Re-embedding invalidates
+those, and unlike the vectors they cannot be silently regenerated without losing the
+member's decisions. **Rule: keep derived state recomputable, or key the member's
+decisions to the entity rather than to the suggestion.**
 
 The same wrinkle hits the FTS half: `to_tsvector('german', …)` and `('english', …)`
 stem differently and mixed-language notes are wrong either way. Pragmatic answer —
@@ -246,15 +281,26 @@ Rules:
 - **Cost:** every semantic query carries a join back to the parent. Trivial on a primary
   key, but it means no search query may ever read the side tables alone — doing so would
   bypass ADR 0004 entirely. This needs a test, not a comment.
-- **Cost:** model choice is effectively load-bearing. Swapping it is a re-embed migration
-  over every row with a note.
-- **Cost:** ADR 0003 rule 6 is narrowed, not broken — but the "structurally generic"
-  argument in part 4 is now the precedent future promotions will cite. It should be held
-  to.
+- Model choice is **reversible in minutes** at household scale (part 5), so it does not
+  need to be settled now — which is why part 5 states a requirement rather than a winner.
+- ADR 0003 rule 6 is left **intact and mechanical**: only DB conventions go to core, and
+  the provider interface follows the existing second-demand trigger. No judgment-based
+  exception is created for future promotions to cite.
+- **Cost:** persisted *derived* state (similarity caches, acted-on suggestions) is the
+  real lock-in, not the model. Part 5's recomputability rule has to be honoured or a
+  re-embed destroys member decisions.
 - **Gated, not built.** The Postgres 18.4 bump may proceed independently. The pgvector
-  work waits on: ADR 0004 **accepted** and ADR 0002 **Phase B** live (building unfiltered
-  ANN search first and retrofitting visibility is the expensive direction), strategy's
-  Phase 3 feature freeze, and pgvector ≥ 0.8 in the deployed image.
+  work waits on **all** of:
+  1. **ADR 0006's DB trigger** — either the shared cluster's base image changes as its
+     own separately-justified decision, or KithLedger gets its own Postgres instance.
+     One satellite's optional feature must not dictate the image holding Heorth's and
+     Feoh's data.
+  2. **ADR 0004 accepted** and **ADR 0002 Phase B** live — building unfiltered search
+     first and retrofitting visibility is the expensive direction.
+  3. Strategy's Phase 3 feature freeze, and pgvector **≥ 0.7** (`halfvec`) in whatever
+     image is then in use.
+- **The `EmbeddingProvider` seam is not blocked by ADR 0006.** Encoders are permitted
+  dependencies; only the *extension* waits. The seam may be designed whenever useful.
 - An **ungated cheap precursor exists**: replacing `ILIKE` with FTS + `pg_trgm` needs none
   of the above, is independently useful, and is the FTS half of the eventual hybrid. Noted
   as available, not scheduled.
@@ -272,3 +318,13 @@ Rules:
   option of a partial `household` index, which in turn prompted part 3 to drop ANN
   indexing entirely at household scale; exact search is both simpler and strictly more
   correct under ADR 0004. The switch requirement made the design smaller.
+- **2026-07-27 (same day, second pass):** status changed to *deferred* behind
+  [ADR 0006](0006-no-server-side-generative-inference-and-a-conservative-base-db.md) —
+  the shared single-Postgres-container decision of 2026-07-25 means adopting pgvector
+  would change the image holding Heorth's and Feoh's data for one satellite's optional
+  feature. Part 4 revised: the `EmbeddingProvider` interface returns to KithLedger and
+  only DB conventions go to core, abandoning the "structurally generic" exception to
+  ADR 0003 rule 6 as a prediction the rule exists to prevent. Part 5 revised: the model
+  default becomes a *requirement* rather than a named model, gains digest-pinning, and
+  its reversal cost is corrected downward — a re-embed is minutes, and side tables make a
+  dimension change a `DROP TABLE`; the real lock-in is persisted derived state.
