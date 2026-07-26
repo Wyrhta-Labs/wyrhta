@@ -59,10 +59,13 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
 - **pgvector for the KithLedger knowledge graph** →
   [ADR 0005](decisions/0005-semantic-retrieval-with-pgvector.md) (proposed) · 2026-07-27
   — yes for semantic note search + MCP/LLM retrieval; **no** for dedupe (`pg_trgm` +
-  `fuzzystrmatch`) and for "drifting from" (plain SQL). Embeddings as `halfvec(1024)`
-  columns on the owning row so ADR 0004 visibility travels with them; filtered ANN needs
-  pgvector ≥ 0.8 iterative scans. Multilingual local model by default. Postgres **18.4**
-  now (ungated); don't wait for 19. Build gated on ADR 0004 accepted + ADR 0002 Phase B.
+  `fuzzystrmatch`) and for "drifting from" (plain SQL). Embeddings as `halfvec(1024)` in
+  per-parent side tables, always joined back to the parent so ADR 0004 visibility stays
+  single-sourced. **Exact search, no ANN index** at household scale — which dissolves the
+  filtered-ANN recall leak; HNSW documented but deferred past ~100k rows. Multilingual
+  local model by default. Switchable off in ENV down to a plain `postgres:18` image, with
+  FTS as the working fallback. Postgres **18.4** now (ungated); don't wait for 19. Build
+  gated on ADR 0004 accepted + ADR 0002 Phase B.
 
 - **Per-member access control (KithLedger knowledge graph)** →
   [ADR 0004](decisions/0004-per-member-access-control-in-the-knowledge-graph.md)
