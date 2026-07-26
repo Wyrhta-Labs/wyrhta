@@ -56,6 +56,14 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
 
 <!-- - **<title>** → [`plans/<file>.md`](plans/<file>.md) · YYYY-MM-DD -->
 
+- **pgvector for the KithLedger knowledge graph** →
+  [ADR 0005](decisions/0005-semantic-retrieval-with-pgvector.md) (proposed) · 2026-07-27
+  — yes for semantic note search + MCP/LLM retrieval; **no** for dedupe (`pg_trgm` +
+  `fuzzystrmatch`) and for "drifting from" (plain SQL). Embeddings as `halfvec(1024)`
+  columns on the owning row so ADR 0004 visibility travels with them; filtered ANN needs
+  pgvector ≥ 0.8 iterative scans. Multilingual local model by default. Postgres **18.4**
+  now (ungated); don't wait for 19. Build gated on ADR 0004 accepted + ADR 0002 Phase B.
+
 - **Per-member access control (KithLedger knowledge graph)** →
   [ADR 0004](decisions/0004-per-member-access-control-in-the-knowledge-graph.md)
   (proposed) · 2026-07-26 — 3-state visibility (`private`/`shared`/`household`) on
