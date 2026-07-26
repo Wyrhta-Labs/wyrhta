@@ -101,6 +101,15 @@ Unordered until Phase 3 learnings land:
 
 - Feoh growth: checking accounts for daily life, investments, retirement
   projection strategies.
+- **Wyrtgeard** module (OE "plant-yard" — the Garden): a household **plant
+  library** (what's growing, where, care notes) plus **Ger** (futhorc ᛄ,
+  "harvest") — the grow-your-own-food subfeature: planting-calendar planning,
+  monitoring, per-crop history, and weather-aware timing. Weather enters as a new
+  **external reference-feed provider** (`WeatherProvider`, see
+  [ADR 0003](decisions/0003-external-reference-feeds-behind-providers.md)).
+  Own-household-first:
+  scoped to our actual beds/plots, not a generic horticulture app. Sizeable enough
+  that it may graduate to its own phase once Phase 3 learnings land.
 - Calendar write-back (provider phase 2).
 - Provider matrix: Google Calendar, CalDAV; Google Tasks and the partner task
   project.
