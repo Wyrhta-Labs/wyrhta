@@ -56,6 +56,12 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
 
 <!-- - **<title>** → [`plans/<file>.md`](plans/<file>.md) · YYYY-MM-DD -->
 
+- **Per-member access control (KithLedger knowledge graph)** →
+  [ADR 0004](decisions/0004-per-member-access-control-in-the-knowledge-graph.md)
+  (proposed) · 2026-07-26 — 3-state visibility (`private`/`shared`/`household`) on
+  nodes *and* edges, enforced at graph traversal; three caller principals (member /
+  household-dashboard / admin); depends on ADR 0002 Phase B.
+
 - **Garden** → [`strategy.md` Phase 5+](strategy.md#phase-5--toward-20) · 2026-07-26
   — captured as the **Wyrtgeard** module (plant library) + **Ger** harvest
   subfeature. Roadmap capture only (feature freeze until Phase 3); no `plans/` doc
