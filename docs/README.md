@@ -13,7 +13,8 @@ This is the thinking layer that sits above the individual service repos.
 - **[`KithLedger`](https://github.com/Wyrhta-Labs/KithLedger)** — API-first personal
   relationship manager.
 
-_(`website-v0` is intentionally out of scope for the current concept work.)_
+_(`website-v0` — the public site. Content reaches it one way, via the transfer document
+`website-v0/docs/website-brief.md`; see the workflow section in the root `CLAUDE.md`.)_
 
 ## Structure of these docs
 
@@ -22,6 +23,8 @@ _(`website-v0` is intentionally out of scope for the current concept work.)_
 - `decisions/` — Architecture Decision Records (ADRs). One file per decision that
   affects more than one service.
 - `plans/` — concept plans for upcoming phases, executed in the service repos.
+- [`execution-log.md`](execution-log.md) — the cross-repo record of what was actually
+  built per phase: commit ranges, tags, adjudicated deviations, deferred findings.
 - [`../CONTEXT.md`](../CONTEXT.md) — the cross-service glossary.
 
 ## Cross-service conventions
