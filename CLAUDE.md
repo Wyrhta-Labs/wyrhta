@@ -38,6 +38,19 @@ and `docs/` (the concept + architecture decision records).
   content-transfer document described below.
 - Capture cross-cutting decisions as ADRs in `docs/decisions/`.
 
+## Execution log (maintained automatically)
+
+`docs/execution-log.md` is the committed record of what was actually built per phase —
+commit ranges, tags, adjudicated deviations, deferred findings. **Do not hand-edit its
+phase sections.** They are generated: the execution tooling writes
+`.superpowers/sdd/progress.md` (git-ignored) and a `Stop` + `SubagentStop` hook
+(`.claude/hooks/sync-execution-log.sh`) syncs those sections into the log after every
+turn and every subagent. The log's preamble, above the first `##` heading, is
+hand-written and preserved by the sync.
+
+Record progress in the ledger and it reaches the log by itself. Committing is manual —
+review the synced diff, then commit.
+
 ## Website content workflow (interim)
 
 Until there is a proper change workflow, **`website-v0/docs/website-brief.md` is the

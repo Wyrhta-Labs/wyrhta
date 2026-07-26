@@ -12,9 +12,12 @@ Task work happens in the independent sub-repos (wyrhta-core/, KithLedger/, Heort
 > `strategy.md` says what we intend to do; this file says what was done. Where they
 > disagree about *intent*, `strategy.md` wins.
 >
-> Append-only, human-owned. The live working copy the execution tooling writes lives at
-> `.superpowers/sdd/progress.md` (git-ignored); this is the committed snapshot — bring it
-> forward at each phase gate.
+> **Maintained automatically.** The execution tooling writes its live ledger to
+> `.superpowers/sdd/progress.md` (git-ignored); a `Stop`/`SubagentStop` hook
+> (`.claude/hooks/sync-execution-log.sh`) copies its phase sections into this file as work
+> progresses. Everything above the first `##` heading is hand-written and preserved by the
+> sync — edit the preamble here, but make content changes in the ledger, not below.
+> Committing stays manual: review the synced diff, then commit it.
 
 ## Phase 0 — Housekeeping
 
