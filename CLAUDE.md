@@ -15,7 +15,7 @@ This root folder is a container. Each subfolder is its **own independent git rep
 | `Heorth/` | `Wyrhta-Labs/Heorth` | Flagship self-hosted household system |
 | `KithLedger/` | `Wyrhta-Labs/KithLedger` | API-first personal relationship manager |
 | `Feoh/` | `Wyrhta-Labs/Feoh` (private) | Independent personal-finance service (being extracted from Heorth) |
-| `website-v0/` | `Wyrhta-Labs/website-v0` | **Out of scope — do not touch this session** |
+| `website-v0/` | `Wyrhta-Labs/website-v0` | Public site. **Do not edit site code from here** — the only permitted write is the content-transfer file (see below) |
 
 This repo (`Wyrhta-Labs/wyrhta-labs`) tracks only: this `CLAUDE.md`, `.claude/`,
 and `docs/` (the concept + architecture decision records).
@@ -34,8 +34,32 @@ and `docs/` (the concept + architecture decision records).
 - **Do not edit code inside `wyrhta-core/`, `Heorth/`, or `KithLedger/`** from this
   repo. Those are separate repos with their own `CLAUDE.md` and conventions; open a
   session in the relevant folder for implementation work.
-- **Never touch `website-v0/`** — explicitly out of scope for now.
+- **Do not edit site code in `website-v0/`** — the single exception is the website
+  content-transfer document described below.
 - Capture cross-cutting decisions as ADRs in `docs/decisions/`.
+
+## Website content workflow (interim)
+
+Until there is a proper change workflow, **`website-v0/docs/website-brief.md` is the
+standard transfer document for website content.** It is the one file this repo may write
+inside `website-v0/`.
+
+Direction of flow is one-way: **`docs/strategy.md` (this repo) → `website-brief.md` →
+site copy.** `strategy.md` is the source of truth; the site is a downstream rendering and
+gets corrected to match, never the reverse.
+
+- **To hand new content to the site:** from a session in *this* repo, rewrite
+  `website-v0/docs/website-brief.md` from `docs/strategy.md`, the ADRs, `IDEAS.md`, and
+  `manual-todo.md`. Update its `Generated:` date. Commit it in the `website-v0` repo
+  (it is a separate repo; `/website-v0/` is git-ignored here — never stage it in the meta
+  repo's index).
+- **To render it:** open a session in `website-v0/` and treat the brief as **read-only
+  input**. Site sessions do not edit the brief.
+- **If the site session wants a strategy change:** bring it back here as an edit to
+  `docs/strategy.md` first, then re-issue the brief.
+- **Honesty constraints carry with the brief:** distinguish shipped from planned, keep the
+  one-maker framing, and never publish secrets, tenant IDs, mailbox addresses, client IDs,
+  or FQDNs from `manual-todo.md`.
 
 ## Common commands
 
