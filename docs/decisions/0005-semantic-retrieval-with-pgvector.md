@@ -33,6 +33,9 @@ else**, behind an `EmbeddingProvider` seam with a local default. Six parts.
 
 ### 1. Scope: vectors buy meaning over prose; everything else has a cheaper answer
 
+The four candidate jobs, with suggestion/recall split in two because its halves land
+on opposite sides of the line:
+
 | Job | Tool |
 |---|---|
 | Semantic search over notes | **Hybrid** — Postgres FTS (`tsvector`) **+** vector, rank-fused. Not vector alone: pure ANN loses exact names, dates, and rare tokens that FTS nails. |
