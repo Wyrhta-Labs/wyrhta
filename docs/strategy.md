@@ -76,6 +76,15 @@ The smallest set that gets the system adopted at home:
 Plans: [M365 integration](plans/m365-integration.md) ·
 [Hearth View + PWA](plans/hearth-view-pwa.md)
 
+**Scope added 2026-07-27 — localisation (DE first), pulled forward from
+Phase 5+:** the household `locale` setting exists but nothing consumes it —
+the UI (incl. the wall display's day/date strings) is hardcoded English
+([Heorth#4](https://github.com/Wyrhta-Labs/Heorth/issues/4)). The exit
+criterion is spouse acceptance and the acceptance surface speaks the wrong
+language; German UI is acceptance polish, not a feature. Hearth View first,
+then phone screens, then settings. Post-v0.3.0 work — ships as a 0.3.x before
+the gate.
+
 **Exit criterion:** spouse acceptance.
 
 ### Phase 3 — Deployment
@@ -117,7 +126,8 @@ Unordered until Phase 3 learnings land:
   in Library).
 - Identity Phase B: Heorth-issued member JWTs; satellite UIs.
 - Hearth View device tokens (wall display without login ceremony).
-- Android PWA polish; localisation (DE first).
+- Android PWA polish. (Localisation moved into Phase 2 scope, 2026-07-27 —
+  see above; further languages beyond DE/EN stay here.)
 - Website correction pass: align copy with this document (Feoh as satellite is
   now true-in-target; fictional journal personas reviewed against the "one
   maker" honesty principle).
