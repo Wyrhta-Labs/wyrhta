@@ -85,7 +85,7 @@ language; German UI is acceptance polish, not a feature. Hearth View first,
 then phone screens, then settings. Post-v0.3.0 work — ships as a 0.3.x before
 the gate. **Resolved 2026-07-28** (Heorth#4 closed, i18n layer + en/de
 catalogs on main, German Hearth View verified live in the simulated wall
-dry-run); release tag still to cut.
+dry-run); shipped as **Heorth v0.3.1** 2026-07-28.
 
 **Exit criterion:** spouse acceptance.
 
