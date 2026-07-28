@@ -1,0 +1,6 @@
+# Force LF line endings for the deploy/ stack's shell scripts, regardless of
+# a checkout's core.autocrlf setting. These files are bind-mounted into Linux
+# containers (docker-entrypoint-initdb.d, backup sidecars, etc.); a CRLF
+# shebang or heredoc terminator fails or silently corrupts the script.
+/deploy/*.sh text eol=lf
+/deploy/initdb/*.sh text eol=lf
