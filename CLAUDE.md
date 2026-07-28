@@ -31,6 +31,11 @@ and `docs/` (the concept + architecture decision records).
 ## Working mode for this repo (IMPORTANT)
 
 - **Conceptual / architecture design only.** Work here produces docs under `docs/`.
+  **One exception: `deploy/`** holds the household stack's Docker Compose files
+  (`docs/plans/household-stack-compose.md`). It is the only runnable, non-docs
+  content this repo tracks, because the meta repo is the only place that knows
+  every service exists. This carve-out does not license editing code inside the
+  service folders — that rule is unchanged.
 - **Do not edit code inside `wyrhta-core/`, `Heorth/`, or `KithLedger/`** from this
   repo. Those are separate repos with their own `CLAUDE.md` and conventions; open a
   session in the relevant folder for implementation work.
