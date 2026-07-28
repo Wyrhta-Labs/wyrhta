@@ -125,13 +125,23 @@ addresses, or FQDNs appear in the example file.
 
 Heorth's `FEOH_API_KEY` must be an `fe_` key minted through **Feoh's own API**,
 which requires Feoh to be running with its admin seeded. No `depends_on` can
-express this. First bring-up is therefore a numbered README procedure:
+express this.
 
-1. Start the stack with `FEOH_API_KEY` unset — Heorth boots; its finance proxy
-   routes fail until step 3.
-2. Authenticate against Feoh (`POST /api/v1/auth/token`) and create a key
-   (`POST /api/v1/auth/keys`). The raw key is returned **once**.
-3. Write it to `deploy/.env` and `docker compose up -d heorth`.
+**Heorth cannot boot without it.** `Heorth/src/config/env.ts:38-39` declares
+`FEOH_BASE_URL: z.string().url()` and `FEOH_API_KEY: z.string().min(1)` as
+**required** — "Both are required (production and test alike)". An empty value
+is a startup validation failure, not a degraded finance proxy. First bring-up is
+therefore a *partial* start, as a numbered README procedure:
+
+1. `docker compose up -d db feoh` — Feoh boots and seeds its admin. Heorth is
+   deliberately not started yet.
+2. `POST /api/v1/auth/token` against Feoh with `FEOH_ADMIN_PASSWORD`, then
+   `POST /api/v1/auth/keys` with that JWT. The raw `fe_` key is returned **once**.
+3. Write it to `deploy/.env` as `FEOH_API_KEY`.
+4. `docker compose up -d` — Heorth, KithLedger, and the backup sidecar start.
+
+Ordering the bring-up this way means Heorth never runs misconfigured and no
+placeholder key is ever written to `.env`.
 
 ## Backup
 
