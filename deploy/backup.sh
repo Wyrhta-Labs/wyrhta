@@ -13,11 +13,13 @@ while true; do
   ts="$(date -u +%Y%m%dT%H%M%SZ)"
   for db in $DATABASES; do
     out="/backups/${db}-${ts}.dump"
-    if pg_dump -h db -U postgres -d "$db" -Fc -f "$out"; then
+    tmp="${out}.tmp"
+    if pg_dump -h db -U postgres -d "$db" -Fc -f "$tmp"; then
+      mv "$tmp" "$out"
       echo "backup ok: ${out}"
     else
       echo "backup FAILED for '${db}'" >&2
-      rm -f "$out"
+      rm -f "$tmp"
     fi
   done
 
