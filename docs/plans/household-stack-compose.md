@@ -139,8 +139,13 @@ express this.
 is a startup validation failure, not a degraded finance proxy. First bring-up is
 therefore a *partial* start, as a numbered README procedure:
 
-1. `docker compose up -d db feoh` — Feoh boots and seeds its admin. Heorth is
-   deliberately not started yet.
+1. `FEOH_API_KEY=bootstrap docker compose up -d db feoh` — Feoh boots and
+   seeds its admin. Heorth is deliberately not started yet. The
+   `FEOH_API_KEY=bootstrap` prefix is required even though `heorth` is not in
+   the service list: Compose interpolates the entire project model before
+   selecting which services to start, so `heorth`'s `${FEOH_API_KEY:?...}`
+   guard aborts the whole command without it; the shell-level value overrides
+   `--env-file` and is never written to `deploy/.env`.
 2. `POST /api/v1/auth/token` against Feoh with `FEOH_ADMIN_PASSWORD`, then
    `POST /api/v1/auth/keys` with that JWT. The raw `fe_` key is returned **once**.
 3. Write it to `deploy/.env` as `FEOH_API_KEY`.

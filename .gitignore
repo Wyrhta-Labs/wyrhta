@@ -25,4 +25,5 @@ npm-debug.log*
 .superpowers/
 
 # --- Deployment secrets (deploy/.env.example is the committed template) ---
-/deploy/.env
+/deploy/.env*
+!/deploy/.env.example

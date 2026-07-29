@@ -40,8 +40,14 @@ cp deploy/.env.example deploy/.env
 
 **1. Start the database and Feoh only.**
 
+Compose interpolates the *entire* project model before deciding which
+services to actually start, so the bare command below fails with `required
+variable FEOH_API_KEY is missing a value` even though `heorth` is not being
+started — prefix it with a throwaway shell value; a shell env var overrides
+`--env-file`, so this never gets written to `deploy/.env`.
+
 ```bash
-docker compose -f deploy/compose.prod.yml --env-file deploy/.env up -d db feoh
+FEOH_API_KEY=bootstrap docker compose -f deploy/compose.prod.yml --env-file deploy/.env up -d db feoh
 docker compose -f deploy/compose.prod.yml --env-file deploy/.env ps feoh   # wait for (healthy)
 ```
 
@@ -145,6 +151,11 @@ docker compose -f deploy/compose.prod.yml --env-file deploy/.env \
 
 Stop the consuming service before restoring into a live database. The dump
 volume holds every household database and is as sensitive as the cluster.
+
+These dumps hold table data only, not roles or passwords — a restore onto a
+fresh volume works only because `initdb/10-databases.sh` recreates the roles
+from `deploy/.env`, so `deploy/.env` is part of the restore path and must be
+backed up separately (and as securely as the dumps themselves).
 
 ## Gotchas
 

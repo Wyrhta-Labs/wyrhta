@@ -36,6 +36,7 @@ if [ "${CREATE_TEST_DATABASES:-false}" = "true" ]; then
     db="${pair##*:}"
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
 	CREATE DATABASE "$db" OWNER "$role";
+	REVOKE ALL ON DATABASE "$db" FROM PUBLIC;
 	EOSQL
     echo "initdb: created database '$db'"
   done
