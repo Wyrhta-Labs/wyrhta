@@ -121,5 +121,22 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  db-backup:
+    image: postgres:18-alpine
+    environment:
+      PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set it in deploy/.env}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_ONCE: ${BACKUP_ONCE:-false}
+    volumes:
+      - db_backups:/backups
+      - ./backup.sh:/usr/local/bin/backup.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   db_data:
+  db_backups:
