@@ -104,6 +104,20 @@ dev config at `localhost:55432/<service>_dev`, left over from a previously
 hand-run `kith-testdb` container; keeping those names lets this shared cluster
 absorb that role without every repo's dev `.env` needing to change.
 
+**`compose.dev.yml` runs its services against `*_dev`; `compose.prod.yml` uses the
+primary names.** This is a fifth intended divergence between the two files, and it
+is a safety property rather than a cosmetic one. Every service repo's
+`tests/setup.ts` refuses a `DATABASE_URL` containing `_dev` and truncates every
+table otherwise, so the `_dev` suffix is what protects dev data from a stray
+`npm test`. An earlier revision pointed dev at the primary databases, which
+silently defeated that guard — a test run against `…:55432/heorth` passed the
+check and would have wiped the running dev stack, reopening the incident at
+`manual-todo.md`'s dev-DB-wiped note.
+
+The guard is a denylist (`includes('_dev')`), so it still fails open for any name
+that is neither `_dev` nor `_test`. Converting it to an allowlist — the database
+name must end in `_test` — is tracked as a follow-up in the service repos.
+
 ## Env and secrets
 
 A single git-ignored `deploy/.env`; `deploy/.env.example` is committed with

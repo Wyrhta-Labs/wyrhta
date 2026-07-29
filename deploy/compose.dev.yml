@@ -39,7 +39,11 @@ services:
   feoh:
     build: ../Feoh
     environment:
-      DATABASE_URL: postgres://feoh:${FEOH_DB_PASSWORD:?}@db:5432/feoh
+      # DEV USES THE _dev DATABASE ON PURPOSE. The service repos' test suites
+      # refuse to run against a DATABASE_URL containing "_dev" and truncate every
+      # table otherwise, so naming dev data *_dev is what protects it from a
+      # stray `npm test`. Prod (compose.prod.yml) uses the primary `feoh`.
+      DATABASE_URL: postgres://feoh:${FEOH_DB_PASSWORD:?}@db:5432/feoh_dev
       JWT_SECRET: ${FEOH_JWT_SECRET:?set it in deploy/.env}
       ADMIN_PASSWORD: ${FEOH_ADMIN_PASSWORD:?set it in deploy/.env}
       API_PORT: 3000
@@ -63,7 +67,8 @@ services:
   kithledger:
     build: ../KithLedger
     environment:
-      DATABASE_URL: postgres://kithledger:${KITH_DB_PASSWORD:?}@db:5432/kithledger
+      # _dev on purpose — see the note on the feoh service above.
+      DATABASE_URL: postgres://kithledger:${KITH_DB_PASSWORD:?}@db:5432/kithledger_dev
       JWT_SECRET: ${KITH_JWT_SECRET:?set it in deploy/.env}
       ADMIN_PASSWORD: ${KITH_ADMIN_PASSWORD:?set it in deploy/.env}
       API_PORT: 3000
@@ -86,7 +91,8 @@ services:
   heorth:
     build: ../Heorth
     environment:
-      DATABASE_URL: postgres://heorth:${HEORTH_DB_PASSWORD:?}@db:5432/heorth
+      # _dev on purpose — see the note on the feoh service above.
+      DATABASE_URL: postgres://heorth:${HEORTH_DB_PASSWORD:?}@db:5432/heorth_dev
       JWT_SECRET: ${HEORTH_JWT_SECRET:?set it in deploy/.env}
       ADMIN_PASSWORD: ${HEORTH_ADMIN_PASSWORD:?set it in deploy/.env}
       ADMIN_EMAIL: ${HEORTH_ADMIN_EMAIL:?set it in deploy/.env}

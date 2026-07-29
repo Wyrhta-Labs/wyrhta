@@ -111,9 +111,31 @@ docker compose -f deploy/compose.prod.yml --env-file deploy/.env exec db \
 The dev file also creates six extra databases: `heorth_test`, `feoh_test`,
 `kithledger_test`, and `heorth_dev`, `feoh_dev`, `kithledger_dev`.
 
-**Point test suites at the `*_test` databases**, never at the dev databases —
-the suites truncate every table between tests, which has wiped dev state
-before.
+### Which database runs what, and why it matters
+
+| | dev (`compose.dev.yml`) | prod (`compose.prod.yml`) | tests |
+|---|---|---|---|
+| Heorth | `heorth_dev` | `heorth` | `heorth_test` |
+| Feoh | `feoh_dev` | `feoh` | `feoh_test` |
+| KithLedger | `kithledger_dev` | `kithledger` | `kithledger_test` |
+
+**The dev services deliberately run against `*_dev`, not the primary databases.**
+This is a safety property, not a cosmetic choice. Each service repo's
+`tests/setup.ts` refuses to run when `DATABASE_URL` contains `_dev`, and
+truncates every table when it does run. Naming the dev data `*_dev` is therefore
+what stops a stray `npm test` from wiping it — as happened once already
+(`../docs/manual-todo.md`, the dev-DB-wiped note).
+
+Point test suites at the `*_test` databases:
+
+```bash
+export DATABASE_URL=postgres://heorth:<pw>@localhost:55432/heorth_test
+```
+
+Do **not** point a test run at a primary database (`heorth`, `feoh`,
+`kithledger`). The current guard only rejects `_dev`, so a primary name passes it
+and the suite will happily truncate. Hardening that guard to require a `_test`
+suffix is an open follow-up in the service repos.
 
 The `*_dev` trio exists so this stack's dev cluster can fully replace a
 previously hand-run `kith-testdb` container: each service repo's own `.env`
@@ -159,6 +181,13 @@ backed up separately (and as securely as the dumps themselves).
 
 ## Gotchas
 
+- **This stack and the per-repo stacks cannot run at the same time.** Each service
+  repo still has its own `docker-compose.yml` and `npm run docker:up`, which
+  publishes the same host port this stack uses (Heorth 4000, Feoh 4001,
+  KithLedger 4002). Running both gives `port is already allocated`. The per-repo
+  files are kept deliberately — they are still the quickest way to bring up one
+  service alone — but pick one or the other. The same applies to running a
+  service natively with `npm run dev`.
 - **The Postgres volume mounts at `/var/lib/postgresql`, not `.../data`.**
   Postgres 18 sets `PGDATA` to `/var/lib/postgresql/<major>/docker`. The old path
   makes the container start against an anonymous volume and *silently* stop
