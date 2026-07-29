@@ -98,6 +98,12 @@ This closes the hazard recorded at `manual-todo.md:115`, where the backend suite
 and the dev stack shared one `heorth` database and per-test truncation wiped the
 delegated M365 connection, mirrored events, allowlist, and household row.
 
+It additionally creates `heorth_dev`, `feoh_dev`, and `kithledger_dev` (approved
+mid-execution deviation). Each service repo's own `.env` already points its local
+dev config at `localhost:55432/<service>_dev`, left over from a previously
+hand-run `kith-testdb` container; keeping those names lets this shared cluster
+absorb that role without every repo's dev `.env` needing to change.
+
 ## Env and secrets
 
 A single git-ignored `deploy/.env`; `deploy/.env.example` is committed with
@@ -151,6 +157,11 @@ the defaults are **daily, kept 14 days**. Restore is a
 documented `pg_restore` invocation in the README — an untested restore path is not
 a backup. The dump volume holds every household database and is exactly as
 sensitive as the cluster.
+
+Each dump is written to a `.tmp` path and `mv`-renamed to its final name only
+after `pg_dump` exits cleanly, so a partial or interrupted run never leaves a
+truncated `.dump` file behind — a listing under `/backups` is always either
+complete or absent.
 
 ## Prerequisites
 

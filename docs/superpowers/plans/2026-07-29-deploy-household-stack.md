@@ -254,7 +254,14 @@ docker compose -f deploy/compose.dev.yml --env-file deploy/.env exec -T db \
   "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY 1;"
 ```
 
-Expected exactly: `feoh`, `feoh_test`, `heorth`, `heorth_test`, `kithledger`, `kithledger_test`, `postgres`.
+Expected exactly: `feoh`, `feoh_dev`, `feoh_test`, `heorth`, `heorth_dev`, `heorth_test`, `kithledger`, `kithledger_dev`, `kithledger_test`, `postgres`.
+
+> **Note (human-approved mid-execution deviation):** the original expected list
+> was six database names plus `postgres`. During execution, `10-databases.sh`
+> was extended to also create `heorth_dev`, `feoh_dev`, and `kithledger_dev` so
+> this dev cluster replaces a previously hand-run `kith-testdb` container that
+> each service repo's own `.env` already points at
+> (`localhost:55432/<service>_dev`). The expected list above is now ten rows.
 
 ```bash
 docker compose -f deploy/compose.dev.yml --env-file deploy/.env exec -T db \
@@ -517,11 +524,13 @@ while true; do
   ts="$(date -u +%Y%m%dT%H%M%SZ)"
   for db in $DATABASES; do
     out="/backups/${db}-${ts}.dump"
-    if pg_dump -h db -U postgres -d "$db" -Fc -f "$out"; then
+    tmp="${out}.tmp"
+    if pg_dump -h db -U postgres -d "$db" -Fc -f "$tmp"; then
+      mv "$tmp" "$out"
       echo "backup ok: ${out}"
     else
       echo "backup FAILED for '${db}'" >&2
-      rm -f "$out"
+      rm -f "$tmp"
     fi
   done
 
@@ -537,6 +546,14 @@ while true; do
   sleep "$INTERVAL"
 done
 ```
+
+> **Note (human-approved mid-execution deviation):** the listing above is the
+> code as actually committed in `deploy/backup.sh`. An earlier draft wrote
+> `pg_dump ... -f "$out"` directly; that left a truncated `.dump` file behind
+> if `pg_dump` was interrupted partway through. It was corrected during
+> execution to write to `"$tmp"` and `mv`-rename to `"$out"` only after a
+> clean exit, so a file appearing in `/backups` is always either complete or
+> absent.
 
 - [ ] **Step 2: Add the service to `deploy/compose.dev.yml`**
 
