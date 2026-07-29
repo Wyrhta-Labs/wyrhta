@@ -36,5 +36,90 @@ services:
       retries: 10
     restart: unless-stopped
 
+  feoh:
+    build: ../Feoh
+    environment:
+      DATABASE_URL: postgres://feoh:${FEOH_DB_PASSWORD:?}@db:5432/feoh
+      JWT_SECRET: ${FEOH_JWT_SECRET:?set it in deploy/.env}
+      ADMIN_PASSWORD: ${FEOH_ADMIN_PASSWORD:?set it in deploy/.env}
+      API_PORT: 3000
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      CORS_ORIGIN: "*"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4001:3000"
+    healthcheck:
+      # node:22-alpine has no curl or wget; Node 22 has a global fetch.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  kithledger:
+    build: ../KithLedger
+    environment:
+      DATABASE_URL: postgres://kithledger:${KITH_DB_PASSWORD:?}@db:5432/kithledger
+      JWT_SECRET: ${KITH_JWT_SECRET:?set it in deploy/.env}
+      ADMIN_PASSWORD: ${KITH_ADMIN_PASSWORD:?set it in deploy/.env}
+      API_PORT: 3000
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      CORS_ORIGIN: "*"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4002:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  heorth:
+    build: ../Heorth
+    environment:
+      DATABASE_URL: postgres://heorth:${HEORTH_DB_PASSWORD:?}@db:5432/heorth
+      JWT_SECRET: ${HEORTH_JWT_SECRET:?set it in deploy/.env}
+      ADMIN_PASSWORD: ${HEORTH_ADMIN_PASSWORD:?set it in deploy/.env}
+      ADMIN_EMAIL: ${HEORTH_ADMIN_EMAIL:?set it in deploy/.env}
+      HOUSEHOLD_NAME: ${HOUSEHOLD_NAME:?set it in deploy/.env}
+      API_PORT: 3000
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      CORS_ORIGIN: "*"
+      # Both required — Heorth fails env validation at startup if either is
+      # empty. See deploy/README.md first bring-up.
+      FEOH_BASE_URL: ${FEOH_BASE_URL:?set it in deploy/.env}
+      FEOH_API_KEY: ${FEOH_API_KEY:?mint it from Feoh — see deploy/README.md}
+      # All six, or all blank. Partial presence is a startup error.
+      M365_TENANT_ID: ${M365_TENANT_ID:-}
+      M365_CLIENT_ID: ${M365_CLIENT_ID:-}
+      M365_CLIENT_SECRET: ${M365_CLIENT_SECRET:-}
+      M365_REDIRECT_URI: ${M365_REDIRECT_URI:-}
+      M365_FAMILY_MAILBOX: ${M365_FAMILY_MAILBOX:-}
+      M365_SHARED_TODO_LIST: ${M365_SHARED_TODO_LIST:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      feoh:
+        condition: service_healthy
+    ports:
+      - "4000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
 volumes:
   db_data:

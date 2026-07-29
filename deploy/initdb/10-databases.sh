@@ -31,12 +31,12 @@ create_owned_db kithledger kithledger "${KITH_DB_PASSWORD:-}"
 # Dev only: separate databases for the test suites, so per-test truncation can
 # never wipe dev data (the incident recorded at docs/manual-todo.md).
 if [ "${CREATE_TEST_DATABASES:-false}" = "true" ]; then
-  for pair in "heorth:heorth_test" "feoh:feoh_test" "kithledger:kithledger_test"; do
+  for pair in "heorth:heorth_test" "feoh:feoh_test" "kithledger:kithledger_test" "heorth:heorth_dev" "feoh:feoh_dev" "kithledger:kithledger_dev"; do
     role="${pair%%:*}"
     db="${pair##*:}"
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
 	CREATE DATABASE "$db" OWNER "$role";
 	EOSQL
-    echo "initdb: created test database '$db'"
+    echo "initdb: created database '$db'"
   done
 fi
