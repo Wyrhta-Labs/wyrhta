@@ -99,10 +99,15 @@ and the dev stack shared one `heorth` database and per-test truncation wiped the
 delegated M365 connection, mirrored events, allowlist, and household row.
 
 It additionally creates `heorth_dev`, `feoh_dev`, and `kithledger_dev` (approved
-mid-execution deviation). Each service repo's own `.env` already points its local
-dev config at `localhost:55432/<service>_dev`, left over from a previously
-hand-run `kith-testdb` container; keeping those names lets this shared cluster
-absorb that role without every repo's dev `.env` needing to change.
+mid-execution deviation). Each service repo's own `.env` points its local dev
+config at `<service>_dev`, left over from a previously hand-run `kith-testdb`
+container; keeping those database names lets this shared cluster absorb that role.
+
+The original intent was that no repo's dev `.env` would need to change at all.
+**That no longer holds:** the dev host port moved from 55432 to 55490 (55432 falls
+inside a Hyper-V/WSL excluded port range on the current host), and this cluster
+uses per-service roles rather than the old shared `kith:kithpw`. Every service
+repo's dev `.env` does need updating — see `deploy/README.md`.
 
 **`compose.dev.yml` runs its services against `*_dev`; `compose.prod.yml` uses the
 primary names.** This is a fifth intended divergence between the two files, and it

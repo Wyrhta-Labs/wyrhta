@@ -19,7 +19,7 @@ conditionals.
 | `heorth` | 4000 | `heorth` |
 | `feoh` | 4001 | `feoh` |
 | `kithledger` | 4002 | `kithledger` |
-| `db` | 55432 (dev only) | — |
+| `db` | 55490 (dev only) | — |
 | `db-backup` | — | dumps all three |
 
 HAProxy already fronts the household and terminates TLS
@@ -129,7 +129,7 @@ what stops a stray `npm test` from wiping it — as happened once already
 Point test suites at the `*_test` databases:
 
 ```bash
-export DATABASE_URL=postgres://heorth:<pw>@localhost:55432/heorth_test
+export DATABASE_URL=postgres://heorth:<pw>@localhost:55490/heorth_test
 ```
 
 Do **not** point a test run at a primary database (`heorth`, `feoh`,
@@ -139,10 +139,19 @@ suffix is an open follow-up in the service repos.
 
 The `*_dev` trio exists so this stack's dev cluster can fully replace a
 previously hand-run `kith-testdb` container: each service repo's own `.env`
-already points its local dev config at `localhost:55432/<service>_dev` (e.g.
-`heorth_dev`), and those names are preserved here rather than renumbered, so
-existing per-repo dev configs keep working unchanged against this shared
-cluster.
+points its local dev config at `<service>_dev` (e.g. `heorth_dev`), and those
+database *names* are preserved here rather than renumbered.
+
+**The port is not.** Every service repo's `.env` still reads
+`postgres://kith:kithpw@localhost:55432/<service>_dev`, and this stack now
+publishes **55490** (see the comment in `compose.dev.yml` — 55432 falls inside a
+Hyper-V/WSL excluded port range on the current host). Since `kith-testdb` is
+retired, nothing listens on 55432 at all, so those configs are stale and will
+fail to connect. Each service repo must update its own `.env` — and the
+credentials too: this cluster uses per-service roles
+(`postgres://<service>:<pw>@localhost:55490/<service>_dev`), not the old shared
+`kith:kithpw`. `Heorth/CLAUDE.md` also still documents the old
+`localhost:55432/heorth_test`.
 
 ## Backups
 
