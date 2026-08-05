@@ -28,11 +28,7 @@ services:
       - db_data:/var/lib/postgresql
       - ./initdb:/docker-entrypoint-initdb.d:ro
     ports:
-      # 55432 sits inside a Hyper-V/WSL dynamic port exclusion range on this
-      # host (`netsh interface ipv4 show excludedportrange protocol=tcp`),
-      # which makes Windows refuse the bind. 55490 is outside all excluded
-      # ranges.
-      - "55490:5432"
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
       interval: 5s
