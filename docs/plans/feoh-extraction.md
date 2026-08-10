@@ -1,5 +1,9 @@
 # Plan — Feoh extraction
 
+> **SUPERSEDED 2026-08-10** by [Feoh merge](feoh-merge.md): the satellite is
+> retired and Feoh returns to Heorth as a built-in optional module. This plan
+> remains as the record of Phase 1 as executed.
+
 **Phase:** 1 · **Governing decisions:** ADR 0002 (identity Phase A), strategy §4
 (hub and satellites) · **Questions resolved by grilling 2026-07-23.**
 **Level:** concept plan. Implementation spans the new Feoh repo and the Heorth
