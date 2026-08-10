@@ -114,7 +114,8 @@ before Ethel consumes it.
 
 Unordered until Phase 3 learnings land:
 
-- Feoh module growth (in Heorth, ADR 0007): checking accounts for daily life, investments, retirement projection strategies.
+- Feoh module growth (in Heorth, ADR 0007): checking accounts for daily
+  life, investments, retirement projection strategies.
 - **Wyrtgeard** module (OE "plant-yard" — the Garden): a household **plant
   library** (what's growing, where, care notes) plus **Ger** (futhorc ᛄ,
   "harvest") — the grow-your-own-food subfeature: planting-calendar planning,
