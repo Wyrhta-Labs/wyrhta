@@ -1,6 +1,6 @@
 # Wyrhta Labs household stack — DEVELOPMENT.
 #
-# Builds every service from its sibling checkout, so Heorth/, Feoh/, and
+# Builds every service from its sibling checkout, so Heorth/ and
 # KithLedger/ must be cloned beside this repo. The deployment file is
 # compose.prod.yml; the two are deliberately independent and must not be
 # merged, extended, or turned into profiles.
@@ -17,7 +17,6 @@ services:
       POSTGRES_DB: postgres
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set it in deploy/.env}
       HEORTH_DB_PASSWORD: ${HEORTH_DB_PASSWORD:?set it in deploy/.env}
-      FEOH_DB_PASSWORD: ${FEOH_DB_PASSWORD:?set it in deploy/.env}
       KITH_DB_PASSWORD: ${KITH_DB_PASSWORD:?set it in deploy/.env}
       CREATE_TEST_DATABASES: "true"
     volumes:
@@ -36,38 +35,13 @@ services:
       retries: 10
     restart: unless-stopped
 
-  feoh:
-    build: ../Feoh
+  kithledger:
+    build: ../KithLedger
     environment:
       # DEV USES THE _dev DATABASE ON PURPOSE. The service repos' test suites
       # refuse to run against a DATABASE_URL containing "_dev" and truncate every
       # table otherwise, so naming dev data *_dev is what protects it from a
-      # stray `npm test`. Prod (compose.prod.yml) uses the primary `feoh`.
-      DATABASE_URL: postgres://feoh:${FEOH_DB_PASSWORD:?}@db:5432/feoh_dev
-      JWT_SECRET: ${FEOH_JWT_SECRET:?set it in deploy/.env}
-      ADMIN_PASSWORD: ${FEOH_ADMIN_PASSWORD:?set it in deploy/.env}
-      API_PORT: 3000
-      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
-      DB_POOL_MAX: ${DB_POOL_MAX:-10}
-      CORS_ORIGIN: "*"
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "4001:3000"
-    healthcheck:
-      # node:22-alpine has no curl or wget; Node 22 has a global fetch.
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
-
-  kithledger:
-    build: ../KithLedger
-    environment:
-      # _dev on purpose — see the note on the feoh service above.
+      # stray `npm test`. Prod (compose.prod.yml) uses the primary database.
       DATABASE_URL: postgres://kithledger:${KITH_DB_PASSWORD:?}@db:5432/kithledger_dev
       JWT_SECRET: ${KITH_JWT_SECRET:?set it in deploy/.env}
       ADMIN_PASSWORD: ${KITH_ADMIN_PASSWORD:?set it in deploy/.env}
@@ -91,7 +65,7 @@ services:
   heorth:
     build: ../Heorth
     environment:
-      # _dev on purpose — see the note on the feoh service above.
+      # _dev on purpose — see the note on the kithledger service above.
       DATABASE_URL: postgres://heorth:${HEORTH_DB_PASSWORD:?}@db:5432/heorth_dev
       JWT_SECRET: ${HEORTH_JWT_SECRET:?set it in deploy/.env}
       ADMIN_PASSWORD: ${HEORTH_ADMIN_PASSWORD:?set it in deploy/.env}
@@ -101,10 +75,8 @@ services:
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       CORS_ORIGIN: "*"
-      # Both required — Heorth fails env validation at startup if either is
-      # empty. See deploy/README.md first bring-up.
-      FEOH_BASE_URL: ${FEOH_BASE_URL:?set it in deploy/.env}
-      FEOH_API_KEY: ${FEOH_API_KEY:?mint it from Feoh — see deploy/README.md}
+      # Finance module built into Heorth (ADR 0007); off by default.
+      FEOH_ENABLED: ${FEOH_ENABLED:-false}
       # All six, or all blank. Partial presence is a startup error.
       M365_TENANT_ID: ${M365_TENANT_ID:-}
       M365_CLIENT_ID: ${M365_CLIENT_ID:-}
@@ -114,8 +86,6 @@ services:
       M365_SHARED_TODO_LIST: ${M365_SHARED_TODO_LIST:-}
     depends_on:
       db:
-        condition: service_healthy
-      feoh:
         condition: service_healthy
     ports:
       - "4000:3000"

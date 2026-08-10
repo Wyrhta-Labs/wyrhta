@@ -14,7 +14,7 @@ This root folder is a container. Each subfolder is its **own independent git rep
 | `wyrhta-core/` | `Wyrhta-Labs/wyrhta-core` (public) | Shared foundation lib `@wyrhta/core`: identity, auth, HTTP kit, household, MCP scaffold, DB conventions |
 | `Heorth/` | `Wyrhta-Labs/Heorth` | Flagship self-hosted household system |
 | `KithLedger/` | `Wyrhta-Labs/KithLedger` | API-first personal relationship manager |
-| `Feoh/` | `Wyrhta-Labs/Feoh` (private) | Independent personal-finance service (being extracted from Heorth) |
+| `Feoh/` | `Wyrhta-Labs/Feoh` (private) | Personal-finance service — merged into Heorth (ADR 0007); repo archived |
 | `website-v0/` | `Wyrhta-Labs/website-v0` | Public site. **Do not edit site code from here** — the only permitted write is the content-transfer file (see below) |
 
 This repo (`Wyrhta-Labs/wyrhta-labs`) tracks only: this `CLAUDE.md`, `.claude/`,

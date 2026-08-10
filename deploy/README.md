@@ -17,10 +17,9 @@ conditionals.
 | Service | Host port | Database |
 |---|---|---|
 | `heorth` | 4000 | `heorth` |
-| `feoh` | 4001 | `feoh` |
 | `kithledger` | 4002 | `kithledger` |
 | `db` | 55490 (dev only) | — |
-| `db-backup` | — | dumps all three |
+| `db-backup` | — | dumps both |
 
 HAProxy already fronts the household and terminates TLS
 (`heorth.home.example.com`); the stack publishes plain ports on the docker
@@ -28,78 +27,24 @@ host and does not run its own proxy.
 
 ## First bring-up
 
-Heorth requires `FEOH_API_KEY`, and that key can only be minted from a
-**running Feoh**. `Heorth/src/config/env.ts` declares it `z.string().min(1)`, so
-an empty value is a startup validation failure — not a degraded finance proxy.
-Bring the stack up in two phases.
+Feoh's finance module is now built into Heorth (ADR 0007), gated by
+`FEOH_ENABLED` (default `false`). Bring-up is a single phase:
 
 ```bash
 cp deploy/.env.example deploy/.env
-# Fill in every value except FEOH_API_KEY. All three JWT secrets must differ.
-```
-
-**1. Start the database and Feoh only.**
-
-Compose interpolates the *entire* project model before deciding which
-services to actually start, so the bare command below fails with `required
-variable FEOH_API_KEY is missing a value` even though `heorth` is not being
-started — prefix it with a throwaway shell value; a shell env var overrides
-`--env-file`, so this never gets written to `deploy/.env`.
-
-```bash
-FEOH_API_KEY=bootstrap docker compose -f deploy/compose.prod.yml --env-file deploy/.env up -d db feoh
-docker compose -f deploy/compose.prod.yml --env-file deploy/.env ps feoh   # wait for (healthy)
-```
-
-**2. Mint a service key from Feoh.** The raw key is returned **once**. Feoh
-wraps every response in a `{"data": {...}, "meta": {...}}` envelope, so the
-field being extracted (`token`, then `key`) sits nested under `data` — the
-`sed` below matches the field by name anywhere in the body, so the envelope
-does not need to be unwrapped explicitly.
-
-```bash
-TOKEN=$(curl -fsS -X POST http://localhost:4001/api/v1/auth/token \
-  -H 'Content-Type: application/json' \
-  -d '{"password":"<FEOH_ADMIN_PASSWORD>"}' | sed -E 's/.*"token":"([^"]+)".*/\1/')
-
-curl -fsS -X POST http://localhost:4001/api/v1/auth/keys \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"heorth-service"}'
-```
-
-The second call's response looks like:
-
-```json
-{"data":{"id":"...","name":"heorth-service","key":"fe_...","keyPrefix":"fe_...","createdAt":"..."},"meta":{}}
-```
-
-The `data.key` value (starts with `fe_`) is the one to save — it is not shown
-again.
-
-**3. Write the `fe_...` value into `deploy/.env` as `FEOH_API_KEY`.**
-
-**4. Start everything else.**
-
-```bash
+# Fill in every value. Both JWT secrets must differ.
 docker compose -f deploy/compose.prod.yml --env-file deploy/.env up -d
 ```
 
-## Private registry
-
-`ghcr.io/wyrhta-labs/feoh` is private. Once per host:
-
-```bash
-docker login ghcr.io -u <github-user>   # token needs read:packages
-```
+Set `FEOH_ENABLED=true` in `deploy/.env` to turn the finance module on.
 
 ## Databases
 
-`initdb/10-databases.sh` creates the three roles and databases — **only when the
+`initdb/10-databases.sh` creates the two roles and databases — **only when the
 data directory is empty**. Docker skips `docker-entrypoint-initdb.d` entirely on
 an existing volume.
 
-**Adding a fourth service later is a manual step**, not a Compose change:
+**Adding a third service later is a manual step**, not a Compose change:
 
 ```bash
 docker compose -f deploy/compose.prod.yml --env-file deploy/.env exec db \
@@ -108,15 +53,14 @@ docker compose -f deploy/compose.prod.yml --env-file deploy/.env exec db \
   -c "REVOKE ALL ON DATABASE newsvc FROM PUBLIC;"
 ```
 
-The dev file also creates six extra databases: `heorth_test`, `feoh_test`,
-`kithledger_test`, and `heorth_dev`, `feoh_dev`, `kithledger_dev`.
+The dev file also creates four extra databases: `heorth_test`,
+`kithledger_test`, and `heorth_dev`, `kithledger_dev`.
 
 ### Which database runs what, and why it matters
 
 | | dev (`compose.dev.yml`) | prod (`compose.prod.yml`) | tests |
 |---|---|---|---|
 | Heorth | `heorth_dev` | `heorth` | `heorth_test` |
-| Feoh | `feoh_dev` | `feoh` | `feoh_test` |
 | KithLedger | `kithledger_dev` | `kithledger` | `kithledger_test` |
 
 **The dev services deliberately run against `*_dev`, not the primary databases.**
@@ -132,12 +76,12 @@ Point test suites at the `*_test` databases:
 export DATABASE_URL=postgres://heorth:<pw>@localhost:55490/heorth_test
 ```
 
-Do **not** point a test run at a primary database (`heorth`, `feoh`,
+Do **not** point a test run at a primary database (`heorth`,
 `kithledger`). The current guard only rejects `_dev`, so a primary name passes it
 and the suite will happily truncate. Hardening that guard to require a `_test`
 suffix is an open follow-up in the service repos.
 
-The `*_dev` trio exists so this stack's dev cluster can fully replace a
+The `*_dev` pair exists so this stack's dev cluster can fully replace a
 previously hand-run `kith-testdb` container: each service repo's own `.env`
 points its local dev config at `<service>_dev` (e.g. `heorth_dev`), and those
 database *names* are preserved here rather than renumbered.
@@ -192,7 +136,7 @@ backed up separately (and as securely as the dumps themselves).
 
 - **This stack and the per-repo stacks cannot run at the same time.** Each service
   repo still has its own `docker-compose.yml` and `npm run docker:up`, which
-  publishes the same host port this stack uses (Heorth 4000, Feoh 4001,
+  publishes the same host port this stack uses (Heorth 4000,
   KithLedger 4002). Running both gives `port is already allocated`. The per-repo
   files are kept deliberately — they are still the quickest way to bring up one
   service alone — but pick one or the other. The same applies to running a

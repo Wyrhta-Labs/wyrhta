@@ -16,11 +16,13 @@ tools rather than used as a standalone app.
 _Avoid_: CRM
 
 **Feoh**:
-Independent personal-finance service (own repo, API, MCP over HTTP) — double-entry
-core, growing toward checking accounts, investments, and retirement projections.
-Consumed by Heorth via an authenticated proxy for daily household use. Extracted
-from Heorth as of Feoh v0.1.0 / Heorth v0.2.0 (2026-07-24).
-_Avoid_: "the finance module"
+The double-entry personal-finance module — accounts, transactions, and (growing
+toward) investments and retirement projections. Extracted from Heorth as of Feoh
+v0.1.0 / Heorth v0.2.0 (2026-07-24) into an independent service, then merged back
+into Heorth 2026-08-10: merged into Heorth (ADR 0007); repo archived. Gated by
+`FEOH_ENABLED` (default off). "Feoh" now names the module/domain inside Heorth,
+not a separate service.
+_Avoid_: "the finance module" (Feoh is the proper name for it)
 
 **Core** (`@wyrhta/core`):
 The shared foundation library (identity, auth, HTTP kit, household, MCP scaffold,

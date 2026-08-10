@@ -27,3 +27,6 @@ npm-debug.log*
 # --- Deployment secrets (deploy/.env.example is the committed template) ---
 /deploy/.env*
 !/deploy/.env.example
+
+# --- Ad-hoc DB dumps taken as guardrails before destructive deploy changes ---
+/deploy/*.sql

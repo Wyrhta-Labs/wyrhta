@@ -1,9 +1,6 @@
 # Wyrhta Labs household stack — DEPLOYMENT.
 #
 # Pulls pinned images from GHCR; no source checkout required on the host.
-# ghcr.io/wyrhta-labs/feoh is PRIVATE — the host needs a prior
-#   docker login ghcr.io
-# with a token carrying read:packages.
 #
 # The development file is compose.dev.yml. The two are deliberately
 # independent and must not be merged, extended, or turned into profiles.
@@ -20,7 +17,6 @@ services:
       POSTGRES_DB: postgres
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set it in deploy/.env}
       HEORTH_DB_PASSWORD: ${HEORTH_DB_PASSWORD:?set it in deploy/.env}
-      FEOH_DB_PASSWORD: ${FEOH_DB_PASSWORD:?set it in deploy/.env}
       KITH_DB_PASSWORD: ${KITH_DB_PASSWORD:?set it in deploy/.env}
     volumes:
       # Postgres 18 PGDATA is /var/lib/postgresql/<major>/docker and the
@@ -33,29 +29,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    restart: unless-stopped
-
-  feoh:
-    image: ghcr.io/wyrhta-labs/feoh:${FEOH_IMAGE_TAG:?pin an image tag in deploy/.env}
-    environment:
-      DATABASE_URL: postgres://feoh:${FEOH_DB_PASSWORD:?}@db:5432/feoh
-      JWT_SECRET: ${FEOH_JWT_SECRET:?set it in deploy/.env}
-      ADMIN_PASSWORD: ${FEOH_ADMIN_PASSWORD:?set it in deploy/.env}
-      API_PORT: 3000
-      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
-      DB_POOL_MAX: ${DB_POOL_MAX:-10}
-      CORS_ORIGIN: ${FEOH_CORS_ORIGIN:-http://heorth:3000}
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "4001:3000"
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
     restart: unless-stopped
 
   kithledger:
@@ -93,8 +66,8 @@ services:
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       CORS_ORIGIN: ${HEORTH_CORS_ORIGIN:-*}
-      FEOH_BASE_URL: ${FEOH_BASE_URL:?set it in deploy/.env}
-      FEOH_API_KEY: ${FEOH_API_KEY:?mint it from Feoh — see deploy/README.md}
+      # Finance module built into Heorth (ADR 0007); off by default.
+      FEOH_ENABLED: ${FEOH_ENABLED:-false}
       M365_TENANT_ID: ${M365_TENANT_ID:-}
       M365_CLIENT_ID: ${M365_CLIENT_ID:-}
       M365_CLIENT_SECRET: ${M365_CLIENT_SECRET:-}
@@ -103,8 +76,6 @@ services:
       M365_SHARED_TODO_LIST: ${M365_SHARED_TODO_LIST:-}
     depends_on:
       db:
-        condition: service_healthy
-      feoh:
         condition: service_healthy
     ports:
       - "4000:3000"
