@@ -16,10 +16,11 @@ never the other way around.
    M365 owns calendars, To Do owns everyday tasks; Heorth mirrors and enriches.
    Providers are pluggable from day one; multi-provider choice (Google, CalDAV,
    Google Tasks, partner project) is a 2.0 commitment.
-4. **Hub and satellites.** Heorth is the household hub. KithLedger and Feoh are
-   independent API-first services (own repo, API, MCP) that Heorth consumes via
-   their APIs. Feoh graduates from Heorth module to satellite (see Phase 1) and
-   grows into a full personal-finance service (checking accounts, investments,
+4. **Hub and satellites.** Heorth is the household hub. KithLedger is an
+   independent API-first service (own repo, API, MCP) that Heorth consumes via
+   its API. Feoh — extracted to a satellite in Phase 1, merged back 2026-08-10
+   (ADR 0007) — ships inside Heorth as a built-in optional finance module
+   (`FEOH_ENABLED`) and grows there (checking accounts, investments,
    retirement projections).
 5. **Identity: A-then-B** — see
    [ADR 0002](decisions/0002-cross-service-identity-a-then-b.md). Satellites hold
@@ -60,6 +61,9 @@ Shipped: core v0.1.2 (README, CHANGELOG, version-drift fix), KithLedger v0.2.0
   consumption before Phase 2's provider work lands.
 - Ships as **Heorth 0.2** ("no functional change") + **Feoh 0.1.0**.
 - Details: [Feoh extraction plan](plans/feoh-extraction.md).
+- **2026-08-10:** the satellite was retired and Feoh merged back into Heorth as
+  a built-in optional module — see ADR 0007 and plans/feoh-merge.md. This
+  section stays as the record of Phase 1 as executed.
 
 ### Phase 2 — Acceptance release ✅ CODE DONE 2026-07-24 (Heorth v0.3.0) — awaiting real-tenant smoke + hardware + spouse gate
 
@@ -91,7 +95,7 @@ dry-run); shipped as **Heorth v0.3.1** 2026-07-28.
 
 ### Phase 3 — Deployment
 
-Homelab deployment (existing HAProxy FQDN → containers, now incl. Feoh), Postgres
+Homelab deployment (existing HAProxy FQDN → containers), Postgres
 with backups, seed the real household, live with it. Learnings from real use
 reprioritise everything below. Feature work does not resume until deployed.
 
@@ -110,8 +114,7 @@ before Ethel consumes it.
 
 Unordered until Phase 3 learnings land:
 
-- Feoh growth: checking accounts for daily life, investments, retirement
-  projection strategies.
+- Feoh module growth (in Heorth, ADR 0007): checking accounts for daily life, investments, retirement projection strategies.
 - **Wyrtgeard** module (OE "plant-yard" — the Garden): a household **plant
   library** (what's growing, where, care notes) plus **Ger** (futhorc ᛄ,
   "harvest") — the grow-your-own-food subfeature: planting-calendar planning,
