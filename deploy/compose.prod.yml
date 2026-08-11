@@ -74,6 +74,10 @@ services:
       M365_REDIRECT_URI: ${M365_REDIRECT_URI:-}
       M365_FAMILY_MAILBOX: ${M365_FAMILY_MAILBOX:-}
       M365_SHARED_TODO_LIST: ${M365_SHARED_TODO_LIST:-}
+      # KithLedger reminders feed — both, or both blank. Partial presence
+      # is a startup error.
+      KITH_BASE_URL: ${KITH_BASE_URL:-}
+      KITH_API_KEY: ${KITH_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
