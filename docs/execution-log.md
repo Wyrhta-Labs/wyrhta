@@ -176,3 +176,27 @@ Exit criterion (spouse acceptance) needs the HUMAN steps in umbrella
 docs/manual-todo.md: §2 ApplicationAccessPolicy PowerShell, §7 first-live-run
 checklist (real-tenant smokes), §4 Pi + touchscreen purchase, secret rotation at
 deployment. Phase 3 (deployment) follows after real use validates.
+
+## Interlude — Feoh merge (ADR 0007), 2026-08-10/11
+
+- Direction reversal ratified: Feoh returns to Heorth as a built-in optional module
+  (env kill switch FEOH_ENABLED, default off). Supersedes the Phase 1 satellite
+  architecture and Heorth's unimplemented plugin-host spec. Design:
+  docs/plans/feoh-merge.md (Codex-review-hardened); ADR 0007; strategy.md updated.
+- Executed subagent-driven, 10 tasks, all reviews Approved (fix rounds: T1 README
+  ADR titles, T4 expense_splits FK test, T5 stale satellite docs, T7 gating-logic
+  consolidation + mobile-nav scope extension). Final whole-branch review READY WITH
+  FIXES → 6-item post-release fix wave (3d2d375), re-review clean.
+- Heorth: e109e8f..3d2d375 on main, released + tagged **v0.5.0** (ADJUDICATED:
+  plan said v0.4.0 but that tag pre-existed for the PostgreSQL 18/GHCR release).
+  Backend 254 tests, web 189, builds clean. ADJUDICATED+RATIFIED: explicit
+  ON DELETE RESTRICT on member FKs raises SQLSTATE 23001 (not 23503) — tests
+  assert 23001.
+- Meta: ADR 0007 + strategy (4b67911), deploy cleanup 655cd42 (feoh service/db
+  dropped from compose + initdb + backup.sh; guardrail pg_dump kept untracked at
+  deploy/feoh-final-dump-2026-08-11.sql). Feoh repo: archive banner e109de3,
+  GitHub repo archived (isArchived:true).
+- Deferred minors triaged keep-deferred by the final review; notable for later:
+  CONTEXT.md "Party" glossary wording; deploy/README.md dev-db port drift
+  (55490 vs 5432, pre-existing); filterNavItems needs a featureKey field when a
+  second optional feature lands.
