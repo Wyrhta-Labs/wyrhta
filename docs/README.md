@@ -14,7 +14,7 @@ This is the thinking layer that sits above the individual service repos.
   relationship manager.
 
 _(`website-v0` — the public site. Content reaches it one way, via the transfer document
-`website-v0/docs/website-brief.md`; see the workflow section in the root `CLAUDE.md`.)_
+`website-v0/docs/website-brief.md`; see the workflow section in the root `AGENTS.md`.)_
 
 ## Structure of these docs
 
