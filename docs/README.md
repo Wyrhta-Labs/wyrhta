@@ -6,7 +6,8 @@ This is the thinking layer that sits above the individual service repos.
 ## The services
 
 - **[`wyrhta-core`](https://github.com/Wyrhta-Labs/wyrhta-core)** — shared foundation
-  (identity, auth, HTTP kit, household, MCP scaffold, DB conventions). Consumed by the
+  (identity, auth, HTTP kit, household, DB conventions; the MCP scaffold moves out
+  to `heorth-mcp` per ADR 0008). Consumed by the
   others as a pinned GitHub-tag dependency.
 - **[`Heorth`](https://github.com/Wyrhta-Labs/Heorth)** — the flagship self-hosted
   household system.

@@ -13,6 +13,7 @@ This root folder is a container. Each subfolder is its **own independent git rep
 |---|---|---|
 | `wyrhta-core/` | `Wyrhta-Labs/wyrhta-core` (public) | Shared foundation lib `@wyrhta/core`: identity, auth, HTTP kit, household, MCP scaffold, DB conventions |
 | `Heorth/` | `Wyrhta-Labs/Heorth` | Flagship self-hosted household system |
+| `heorth-mcp/` | `Wyrhta-Labs/heorth-mcp` (private) | The household's single MCP server — its own container, a pure REST client of the services (ADR 0008) |
 | `KithLedger/` | `Wyrhta-Labs/KithLedger` | API-first personal relationship manager |
 | `Feoh/` | `Wyrhta-Labs/Feoh` (private) | Personal-finance service — merged into Heorth (ADR 0007); repo archived |
 | `website-v0/` | `Wyrhta-Labs/website-v0` | Public site. **Do not edit site code from here** — the only permitted write is the content-transfer file (see below) |
@@ -28,6 +29,12 @@ decision records).
   link. This is three independent repos sharing a library by version tag, **not** a
   monorepo. A change in `wyrhta-core` only reaches the consumers when a new tag is
   cut and their `package.json` is bumped.
+- **MCP is not a property of a service** (ADR 0008). A service ships a **REST API**;
+  `heorth-mcp` is a separate container that turns REST into MCP tools for the whole
+  household, over Streamable HTTP, forwarding the caller's `he_` key to Heorth.
+  **A new service does not get its own MCP surface** — it gets tools in `heorth-mcp`
+  that call its API. The MCP code embedded in `Heorth`, `KithLedger`, and
+  `wyrhta-core` is being migrated out; see `heorth-mcp/docs/spec/`.
 
 ## Working mode for this repo (IMPORTANT)
 

@@ -17,16 +17,23 @@ never the other way around.
    Providers are pluggable from day one; multi-provider choice (Google, CalDAV,
    Google Tasks, partner project) is a 2.0 commitment.
 4. **Hub and satellites.** Heorth is the household hub. KithLedger is an
-   independent API-first service (own repo, API, MCP) that Heorth consumes via
-   its API. Feoh — extracted to a satellite in Phase 1, merged back 2026-08-10
-   (ADR 0007) — ships inside Heorth as a built-in optional finance module
+   independent API-first service (own repo, own API) that Heorth consumes via
+   its API. Services expose **REST only** — MCP is a separate container
+   (`heorth-mcp`) that fronts them, see point 6. Feoh — extracted to a satellite
+   in Phase 1, merged back 2026-08-10 (ADR 0007) — ships inside Heorth as a built-in optional finance module
    (`FEOH_ENABLED`) and grows there (checking accounts, investments,
    retirement projections).
 5. **Identity: A-then-B** — see
    [ADR 0002](decisions/0002-cross-service-identity-a-then-b.md). Satellites hold
    no member accounts (service API keys only) until they grow real UIs, then they
    accept Heorth-issued member JWTs.
-6. **Core discipline (`@wyrhta/core`):**
+6. **MCP is a container, not a service feature** — see
+   [ADR 0008](decisions/0008-mcp-as-a-standalone-container-over-rest.md).
+   `heorth-mcp` is the household's single MCP server: one Streamable HTTP
+   endpoint, serving Heorth's and KithLedger's tools by calling their public
+   REST APIs. It owns no data. A new service ships a REST API and gains tools
+   there — it does **not** ship its own MCP surface.
+7. **Core discipline (`@wyrhta/core`):**
    - Demand-driven only — features land when a consumer concretely needs them.
    - Every change ships as a semver tag + changelog entry (pre-1.0: minor may
      break, patch is safe). Consumers upgrade by deliberate pin-bump.
@@ -106,9 +113,10 @@ counterpart): assets/appliances **including vehicles**, rooms, Maintenance Plans
 (projecting due work into the task provider), and service contacts backed by
 KithLedger — the first real cross-service integration.
 
-Prerequisite: **KithLedger's MCP moves from stdio to HTTP transport** (satellite
-convention: MCP over HTTP, stdio for local dev only) so it deploys as a satellite
-before Ethel consumes it.
+Prerequisite (revised 2026-08-18, ADR 0008): the old "KithLedger's MCP moves
+from stdio to HTTP" item is **dropped**. The transport move happens by the
+`kith.*` tools landing in `heorth-mcp` instead; KithLedger deploys as a satellite
+with a REST API and no MCP surface of its own.
 
 ### Phase 5+ — toward 2.0
 
