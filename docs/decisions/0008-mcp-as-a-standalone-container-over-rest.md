@@ -1,6 +1,8 @@
 # 0008 — MCP as a standalone container over REST
 
-**Status:** accepted 2026-08-18 · **Amends:** the "every service ships its own
+**Status:** accepted 2026-08-18 · **Amended 2026-08-18** (same day, before any
+implementation): the `kith.*` service-key arrangement below is superseded — see
+"Amendment" at the end. · **Amends:** the "every service ships its own
 MCP surface" convention assumed by ADR 0002, `strategy.md` (hub-and-satellites,
 Phase 4's stdio→HTTP prerequisite), and `wyrhta-core`'s MCP scaffold.
 
@@ -68,3 +70,36 @@ It ships a REST API, and heorth-mcp gains tools that call it.
   cannot express KithLedger's per-member access control (ADR 0004). This
   resolves with ADR 0002 Phase B (Heorth-issued SSO); until then, whether the
   `kith.*` write tools ship is an open question recorded in the spec.
+
+## Amendment (2026-08-18) — per-member access ships now
+
+The "known asymmetry" recorded above is **not deferred**. `kith.*` tools will not
+ship on a `kl_` service key; per-member access control (ADR 0004, in full) and
+the member-JWT path it needs (ADR 0002 Phase B) are being built first, and the
+`kith.*` tools land afterwards carrying member context.
+
+Three findings from scoping this change amend the decision:
+
+- **KithLedger has no member concept at all** — no ownership or visibility column
+  on any domain table, exactly one user by construction with no route to create a
+  second, and `principal` read in zero places outside `@wyrhta/core`. ADR 0004
+  assumed Phase B would supply a member id to filter against; there is nothing to
+  filter against yet. Multi-member identity in KithLedger is a prerequisite the
+  ADR does not name.
+- **ADR 0002 Phase B's shared `JWT_SECRET` is rejected on security grounds.**
+  Heorth's `JWT_SECRET` also derives the M365 refresh-token encryption key
+  (`src/m365/crypto.ts`); sharing it with a satellite makes a satellite env
+  compromise a Heorth M365 compromise. Satellite tokens get their own signing key.
+  Its form — separate shared secret, or asymmetric keys plus JWKS — is open.
+- **A token-exchange hop is missing from every ADR.** An MCP client presents an
+  `he_` API key; KithLedger will require a member JWT; heorth-mcp holds no minting
+  capability and must not. Heorth therefore needs an endpoint exchanging an `he_`
+  key for a short-lived satellite JWT (`iss: heorth`, `aud: kithledger`). This
+  needs its own ADR covering endpoint shape, TTL, audience binding, and whether
+  the exchanged token may be cached.
+
+Consequence for this decision's cost line: Programme B is larger than the MCP
+migration it unblocks, and its nine-deep dependency chain — not the tool porting —
+sets the timeline. The 37 Heorth tools are unaffected and proceed in parallel.
+
+Tracking: `Wyrhta-Labs/wyrhta-labs` issue #1.

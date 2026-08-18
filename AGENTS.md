@@ -44,9 +44,20 @@ decision records).
   content this repo tracks, because the meta repo is the only place that knows
   every service exists. This carve-out does not license editing code inside the
   service folders — that rule is unchanged.
-- **Do not edit code inside `wyrhta-core/`, `Heorth/`, or `KithLedger/`** from this
-  repo. Those are separate repos with their own agent instructions and conventions;
-  open a session in the relevant folder for implementation work.
+- **Do not edit code inside `wyrhta-core/`, `Heorth/`, `KithLedger/`, or
+  `heorth-mcp/` directly from a session in this repo.** Those are separate repos with
+  their own agent instructions and conventions.
+  **Exception — orchestrated implementation (added 2026-08-18):** a session here may
+  *dispatch subagents* that work inside a service folder, for cross-repo programmes
+  the meta repo is coordinating (the ADR 0008 MCP migration is the first).
+  Conditions, all of them:
+  - The subagent's working directory is the **service folder**, and it reads and
+    follows that repo's own `CLAUDE.md` / `AGENTS.md` — meta-repo conventions do not
+    travel with it.
+  - It changes **only** that one repo, and commits in that repo.
+  - The orchestrating session still writes no service code with its own hands.
+  - Ad-hoc edits outside such a programme remain forbidden: open a session in the
+    relevant folder.
 - **Do not edit site code in `website-v0/`** — the single exception is the website
   content-transfer document described below.
 - Capture cross-cutting decisions as ADRs in `docs/decisions/`.

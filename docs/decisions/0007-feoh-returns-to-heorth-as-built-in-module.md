@@ -1,6 +1,10 @@
 # 0007 — Feoh returns to Heorth as a built-in optional module
 
-**Status:** accepted 2026-08-10 · **Supersedes:** the Feoh satellite architecture
+**Status:** accepted 2026-08-10 · **Amended 2026-08-17:** the `FEOH_ENABLED`
+kill switch described below was removed; `feohModule` now mounts unconditionally
+in every deployment. The precedent it set for *optional* features (env kill
+switch + `GET /api/v1/features`) still stands for other modules — Feoh simply
+stopped being optional. · **Supersedes:** the Feoh satellite architecture
 (plans/feoh-extraction.md, executed as Phase 1) and Heorth's unimplemented
 plugin-host design (Heorth docs/superpowers/specs/2026-08-06-plugin-system-design.md).
 

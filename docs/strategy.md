@@ -20,9 +20,10 @@ never the other way around.
    independent API-first service (own repo, own API) that Heorth consumes via
    its API. Services expose **REST only** — MCP is a separate container
    (`heorth-mcp`) that fronts them, see point 6. Feoh — extracted to a satellite
-   in Phase 1, merged back 2026-08-10 (ADR 0007) — ships inside Heorth as a built-in optional finance module
-   (`FEOH_ENABLED`) and grows there (checking accounts, investments,
-   retirement projections).
+   in Phase 1, merged back 2026-08-10 (ADR 0007) — ships inside Heorth as a
+   built-in finance module and grows there (checking accounts, investments,
+   retirement projections). The `FEOH_ENABLED` kill switch was removed
+   2026-08-17; the module now mounts unconditionally.
 5. **Identity: A-then-B** — see
    [ADR 0002](decisions/0002-cross-service-identity-a-then-b.md). Satellites hold
    no member accounts (service API keys only) until they grow real UIs, then they
