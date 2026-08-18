@@ -90,9 +90,14 @@ is provisioning-only with no data access. Exchange is for member context alone.
    issued per member and carry that member's role, so today the answer is yes.
    If Heorth ever issues scoped or service-level `he_` keys, exchange must
    respect that scope rather than silently granting full member identity.
-2. **Should exchange be logged as an auth event?** It is a credential-minting
-   operation; the argument for auditing it is strong, but at 5-minute TTLs with
-   a warm cache it is chatty. Sample, or log only cache misses.
+2. ~~**Should exchange be logged as an auth event?**~~ **Resolved 2026-08-18
+   (task B3): log every mint and every refusal.** The "chatty" objection does
+   not survive this ADR's own design — heorth-mcp caches a token for its
+   lifetime, so Heorth only ever sees cache *misses*: roughly one line per
+   member per five minutes. That is the "log only cache misses" option,
+   obtained for free. Sampling would cost completeness of a credential-minting
+   audit trail for no real saving, and a request for an unregistered audience
+   is precisely the line worth keeping.
 3. ~~**Clock skew** between Heorth and satellites at a 5-minute TTL.~~
    **Resolved 2026-08-18 (task B1b):** core `v0.2.0`'s `verifyToken` takes
    `leewaySeconds`, defaulting to 0 so nothing loosens for existing callers.
