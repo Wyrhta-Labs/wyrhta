@@ -93,5 +93,10 @@ is provisioning-only with no data access. Exchange is for member context alone.
 2. **Should exchange be logged as an auth event?** It is a credential-minting
    operation; the argument for auditing it is strong, but at 5-minute TTLs with
    a warm cache it is chatty. Sample, or log only cache misses.
-3. **Clock skew** between Heorth and satellites at a 5-minute TTL. A small
-   `leeway` on verification is probably needed; core's `verifyToken` has none.
+3. ~~**Clock skew** between Heorth and satellites at a 5-minute TTL.~~
+   **Resolved 2026-08-18 (task B1b):** core `v0.2.0`'s `verifyToken` takes
+   `leewaySeconds`, defaulting to 0 so nothing loosens for existing callers.
+   Satellite verification (B1d) should pass `leewaySeconds: 60` — a 20%
+   widening of the 300s TTL, the usual JWT convention. Note `hono/jwt` has no
+   leeway of its own; core runs its own `exp`/`nbf`/`iat` checks when leeway
+   is non-zero.
