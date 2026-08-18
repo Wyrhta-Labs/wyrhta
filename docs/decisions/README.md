@@ -12,7 +12,7 @@ Cross-cutting decisions that affect more than one Wyrhta Labs service.
 - [0006 — No server-side generative inference; conservative base database](0006-no-server-side-generative-inference-and-a-conservative-base-db.md)
 - [0007 — Feoh returns to Heorth as a built-in optional module](0007-feoh-returns-to-heorth-as-built-in-module.md)
 - [0008 — MCP as a standalone container over REST](0008-mcp-as-a-standalone-container-over-rest.md)
-- [0009 — Satellite token exchange: how member identity reaches a satellite](0009-satellite-token-exchange.md) *(proposed)*
+- [0009 — Satellite token exchange: how member identity reaches a satellite](0009-satellite-token-exchange.md)
 
 ## Format
 

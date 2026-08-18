@@ -1,6 +1,6 @@
 # 0009 — Satellite token exchange: how member identity reaches a satellite
 
-**Status:** proposed 2026-08-18 · **Depends on:** [ADR 0002](0002-cross-service-identity-a-then-b.md)
+**Status:** accepted 2026-08-18 · **Depends on:** [ADR 0002](0002-cross-service-identity-a-then-b.md)
 Phase B, [ADR 0004](0004-per-member-access-control-in-the-knowledge-graph.md),
 [ADR 0008](0008-mcp-as-a-standalone-container-over-rest.md) ·
 **Tracking:** `Wyrhta-Labs/wyrhta-labs` issue #1 (task B3)
