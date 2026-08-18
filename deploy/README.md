@@ -18,6 +18,7 @@ conditionals.
 |---|---|---|
 | `heorth` | 4000 | `heorth` |
 | `kithledger` | 4002 | `kithledger` |
+| `heorth-mcp` | 4003 | — (owns no data) |
 | `db` | 55490 (dev only) | — |
 | `db-backup` | — | dumps both |
 
@@ -27,8 +28,9 @@ host and does not run its own proxy.
 
 ## First bring-up
 
-Feoh's finance module is now built into Heorth (ADR 0007), gated by
-`FEOH_ENABLED` (default `false`). Bring-up is a single phase:
+Feoh's finance module is built into Heorth (ADR 0007) and is **always on** —
+the `FEOH_ENABLED` kill switch was removed on 2026-08-17. Bring-up is a single
+phase:
 
 ```bash
 cp deploy/.env.example deploy/.env
@@ -36,7 +38,22 @@ cp deploy/.env.example deploy/.env
 docker compose -f deploy/compose.prod.yml --env-file deploy/.env up -d
 ```
 
-Set `FEOH_ENABLED=true` in `deploy/.env` to turn the finance module on.
+## heorth-mcp
+
+The household's single MCP server (ADR 0008), reached on port 4003. It owns no
+data and holds no Heorth credential: an MCP client presents its own
+`Authorization: Bearer he_...` and heorth-mcp forwards it verbatim to Heorth, so
+per-member permissions and the audit trail stay intact end to end.
+
+It talks to `heorth` over the compose network (`HEORTH_BASE_URL=http://heorth:3000`
+— origin only; the client appends `/api/v1` itself) and waits for Heorth to be
+healthy before starting.
+
+`KITH_BASE_URL`/`KITH_API_KEY` are deliberately **unset**. The `kith.*` tools are
+not registered until member context can reach KithLedger (issue #1, task B11), so
+configuring them today would have no effect.
+
+Prod pins `HEORTH_MCP_IMAGE_TAG`; dev builds from `../heorth-mcp`.
 
 ## Databases
 

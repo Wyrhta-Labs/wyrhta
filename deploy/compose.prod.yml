@@ -66,8 +66,6 @@ services:
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       CORS_ORIGIN: ${HEORTH_CORS_ORIGIN:-*}
-      # Finance module built into Heorth (ADR 0007); off by default.
-      FEOH_ENABLED: ${FEOH_ENABLED:-false}
       M365_TENANT_ID: ${M365_TENANT_ID:-}
       M365_CLIENT_ID: ${M365_CLIENT_ID:-}
       M365_CLIENT_SECRET: ${M365_CLIENT_SECRET:-}
@@ -89,6 +87,29 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    restart: unless-stopped
+
+  heorth-mcp:
+    image: ghcr.io/wyrhta-labs/heorth-mcp:${HEORTH_MCP_IMAGE_TAG:?pin an image tag in deploy/.env}
+    environment:
+      # Origin only — the client appends /api/v1 itself.
+      HEORTH_BASE_URL: http://heorth:3000
+      # KITH_BASE_URL/KITH_API_KEY are deliberately NOT set yet: the kith.*
+      # tools are not registered until member context reaches KithLedger
+      # (issue #1 task B11). Setting them today would do nothing.
+      PORT: 3200
+      UPSTREAM_TIMEOUT_MS: ${UPSTREAM_TIMEOUT_MS:-10000}
+    depends_on:
+      heorth:
+        condition: service_healthy
+    ports:
+      - "4003:3200"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3200/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
 
   db-backup:
