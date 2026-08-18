@@ -1,6 +1,8 @@
 # 0004 — Per-member access control in the KithLedger knowledge graph
 
-**Status:** proposed (2026-07-26)
+**Status:** **accepted** 2026-08-19 (proposed 2026-07-26) · Ratified when built —
+see "Amendments on ratification" at the end for what changed on contact with the
+code. · **Tracking:** `Wyrhta-Labs/wyrhta-labs` issue #1 (tasks B4–B9)
 
 ## Context
 
@@ -120,7 +122,70 @@ dashboard uses the household service principal and sees only the household slice
 - **Hard dependency on ADR 0002 Phase B.** No member-level enforcement is possible
   until member JWTs reach KithLedger. The model may be schema-present but inert until
   then.
-- **Proposed, not accepted.** Nothing is built until KithLedger reaches Phase B (a
-  real member-facing surface). The specifics here — the 3-state enum, the three
-  principals, the traversal rules — are provisional and get ratified, and possibly
-  revised, when the feature is designed for real.
+- ~~**Proposed, not accepted.**~~ **Ratified 2026-08-19**, built in full rather than
+  deferred. The 3-state enum, the three principals and the traversal rules all
+  survived implementation; the amendments below record where reality differed.
+
+## Amendments on ratification (2026-08-19)
+
+Implemented across tasks B4–B9 of issue #1. Five things this ADR did not
+anticipate, or left ambiguous:
+
+1. **A prerequisite this ADR does not name.** It assumed ADR 0002 Phase B would
+   supply "a resolved household-member id at query time" and that enforcement was
+   otherwise only inert. In fact **KithLedger had no member concept at all** — no
+   ownership column anywhere, exactly one user by construction with no route to
+   create a second, and `principal` read in zero places outside `@wyrhta/core`.
+   Phase B delivers the id; there was nothing to match it against. Multi-member
+   identity had to be built first (B4), with members provisioned **just in time**
+   from a verified token so KithLedger never becomes a second source of truth for
+   who the household is.
+
+2. **One identity space, not two.** JIT provisioning reuses core's `users` table
+   with Heorth's `sub` *as* the local `users.id`. The deciding argument is this
+   ADR's own model: the local admin owns items exactly as a member does, so with
+   two identity spaces `owner` could not be a foreign key at all — leaving either
+   an un-foreign-keyed `owner` on the column the whole model rests on, or a
+   polymorphic `(owner_kind, owner_id)` pair threaded through every join in §3.
+
+3. **§3.3 is implemented more strictly than written.** The text says traversal
+   must not route *through* an item you cannot see, and its example names a hidden
+   **node**. The implementation reads "item" as covering hidden **edges** too: a
+   visible person reachable only across an edge you cannot see is not surfaced.
+
+4. **§4's "owner-only mutation" was ambiguous and is now settled.** The bolded
+   lead-in reads broadly; the sentence defining it covers only `visibility` and the
+   share set. Resolved deliberately, 2026-08-19:
+
+   | state | read | edit content | delete |
+   |---|---|---|---|
+   | `private` | owner | owner | owner |
+   | `shared` | owner + share set | owner + share set | **owner only** |
+   | `household` | all members | all members | all members |
+
+   Content edits follow read scope because `household` is the *default* state —
+   owner-only editing would make the household's own shared data read-only for
+   everyone but whoever typed it first. Deletion of a deliberately-narrowed item
+   is not the same right as correcting it, hence owner-only for `private` and
+   `shared`. `household` items stay deletable by any member, because an item only
+   its owner can remove outlives its usefulness.
+
+5. **`updated_by` added.** This ADR is a disclosure control and specifies no
+   provenance. With `shared` real, a member editing or deleting another member's
+   item would otherwise leave no trace — the schema recorded `updated_at` but not
+   who. Added while the tables were still empty.
+
+**One part is defined but not yet useful.** §2.3's ops principal ("provisioning,
+migrations, schema, health") exists as a real credential whose *no-data-access*
+half is enforced and tested — but KithLedger has no HTTP surface for any of those
+purposes: migrations run at startup, B4 removed the need for a provisioning route,
+and `/health` is unauthenticated. It grants nothing an anonymous caller lacks. It
+was left as a placeholder with teeth rather than having an ops surface invented to
+justify it.
+
+**The cross-service migration in Consequences is done.** Heorth's always-on
+reminders feed presented a key backfilled as `member` — reading with the full
+personal scope of KithLedger's local admin, and able to write. It now presents a
+`household`-kinded credential: the `household` slice only, read-only. The
+consequence is visible and intended — reminders someone marked `private` or shared
+to a subset no longer appear on the hearth wall, and are absent from its totals.
