@@ -13,6 +13,7 @@ Cross-cutting decisions that affect more than one Wyrhta Labs service.
 - [0007 — Feoh returns to Heorth as a built-in optional module](0007-feoh-returns-to-heorth-as-built-in-module.md)
 - [0008 — MCP as a standalone container over REST](0008-mcp-as-a-standalone-container-over-rest.md)
 - [0009 — Satellite token exchange: how member identity reaches a satellite](0009-satellite-token-exchange.md)
+- [0010 — `@wyrhta/core` stays a git dependency that builds on install](0010-core-stays-a-git-dependency-that-builds-on-install.md)
 
 ## Format
 
