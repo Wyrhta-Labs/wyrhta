@@ -16,7 +16,7 @@ This root folder is a container. Each subfolder is its **own independent git rep
 | `heorth-mcp/` | `Wyrhta-Labs/heorth-mcp` (private) | The household's single MCP server — its own container, a pure REST client of the services (ADR 0008) |
 | `KithLedger/` | `Wyrhta-Labs/KithLedger` | API-first personal relationship manager |
 | `Feoh/` | `Wyrhta-Labs/Feoh` (private) | Personal-finance service — merged into Heorth (ADR 0007); repo archived |
-| `website-v0/` | `Wyrhta-Labs/website-v0` | Public site. **Do not edit site code from here** — the only permitted write is the content-transfer file (see below) |
+| `website/` | `Wyrhta-Labs/website` | Public site. **Do not edit site code from here** — the only permitted write is the content-transfer file (see below) |
 
 This repo (`Wyrhta-Labs/wyrhta-labs`) tracks only: this `AGENTS.md` (plus the
 `CLAUDE.md` pointer to it), `.claude/`, and `docs/` (the concept + architecture
@@ -58,7 +58,7 @@ decision records).
   - The orchestrating session still writes no service code with its own hands.
   - Ad-hoc edits outside such a programme remain forbidden: open a session in the
     relevant folder.
-- **Do not edit site code in `website-v0/`** — the single exception is the website
+- **Do not edit site code in `website/`** — the single exception is the website
   content-transfer document described below.
 - Capture cross-cutting decisions as ADRs in `docs/decisions/`.
 
@@ -77,20 +77,20 @@ review the synced diff, then commit.
 
 ## Website content workflow (interim)
 
-Until there is a proper change workflow, **`website-v0/docs/website-brief.md` is the
+Until there is a proper change workflow, **`website/docs/website-brief.md` is the
 standard transfer document for website content.** It is the one file this repo may write
-inside `website-v0/`.
+inside `website/`.
 
 Direction of flow is one-way: **`docs/strategy.md` (this repo) → `website-brief.md` →
 site copy.** `strategy.md` is the source of truth; the site is a downstream rendering and
 gets corrected to match, never the reverse.
 
 - **To hand new content to the site:** from a session in *this* repo, rewrite
-  `website-v0/docs/website-brief.md` from `docs/strategy.md`, the ADRs, `IDEAS.md`, and
-  `manual-todo.md`. Update its `Generated:` date. Commit it in the `website-v0` repo
-  (it is a separate repo; `/website-v0/` is git-ignored here — never stage it in the meta
+  `website/docs/website-brief.md` from `docs/strategy.md`, the ADRs, `IDEAS.md`, and
+  `manual-todo.md`. Update its `Generated:` date. Commit it in the `website` repo
+  (it is a separate repo; `/website/` is git-ignored here — never stage it in the meta
   repo's index).
-- **To render it:** open a session in `website-v0/` and treat the brief as **read-only
+- **To render it:** open a session in `website/` and treat the brief as **read-only
   input**. Site sessions do not edit the brief.
 - **If the site session wants a strategy change:** bring it back here as an edit to
   `docs/strategy.md` first, then re-issue the brief.

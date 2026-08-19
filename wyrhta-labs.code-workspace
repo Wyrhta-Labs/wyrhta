@@ -1,10 +1,13 @@
 {
 	"folders": [
 		{
-			"path": "website-v0"
+			"path": "website"
 		},
 		{
 			"path": "Heorth"
+		},
+		{
+			"path": "heorth-mcp"
 		},
 		{
 			"path": "KithLedger"
