@@ -4,8 +4,9 @@
 `KithLedger`, `heorth-mcp`, `website`), working trees **and** full history
 (`git log --all -p`), plus the untracked-but-present files in this checkout.
 
-Current visibility: `wyrhta-core` and `website` are already public; `wyrhta`,
-`Heorth`, `KithLedger`, `heorth-mcp` are private; `Feoh` is private + archived.
+**Status: the flip happened on 2026-08-19.** All six repos are public. What
+follows is the audit as it stood before that, kept as the record of what was
+found and fixed; the closing section tracks what is done and what is left.
 
 **Headline: no live secret was found in any repo's history.** No `.env` was ever
 committed, in any of the six. No private key, no PAT, no cloud credential, no
@@ -187,17 +188,57 @@ PRs arrive with the right expectations.
 
 ---
 
-## Before you flip the switch
+## What was done
 
-1. Rewrite history for items 1–3 (`git filter-repo`) on all affected repos, then
-   force-push. Do this while the repos are still private.
-2. Add `LICENSE` to all five code repos.
-3. Flip the `heorth-mcp` GHCR package to public alongside the repo.
-4. Run a real scanner over each rewritten history —
-   `gitleaks detect --no-git=false` or `trufflehog git file://.` — rather than
-   trusting the pattern sweep behind this document.
-5. Enable **secret scanning + push protection** and Dependabot alerts on every
-   repo (Settings → Code security). They are free on public repos and would catch
-   anything this sweep missed.
-6. Only then flip visibility, one repo at a time, `wyrhta-core` last so its
-   consumers are readable when someone follows the dependency.
+Completed 2026-08-19, before the repos were made public:
+
+1. **`docs/manual-todo.md` removed from history** (`git filter-repo`) and
+   git-ignored. The meta repo went 73 → 68 commits; five commits touched nothing
+   else and were pruned. The file still exists in the maintainer's checkout.
+2. **Deployment identifiers redacted in tree and history**, in this repo and in
+   Heorth: the household FQDN became `heorth.home.example.com`, absolute Windows
+   paths became `/path/to/wyrhta`. A full re-scan of both rewritten histories
+   returns zero hits for the FQDN, the tenant and client IDs, the credential
+   record ids, and all three mailbox addresses.
+3. **Heorth's `run-local` skill generalised** — it described one specific
+   machine; it now describes whatever the reader's own env files say, which is
+   what `smoke.sh` already resolved at run time.
+4. **MIT licence** added to the four code repos plus this one, with the `license`
+   field in each `package.json`. The `website` repo deliberately carries **no**
+   licence: it holds generative imagery that is not the maintainer's to
+   sublicense.
+7. **Heorth's `.env.example` and README** rewritten for a reader who is not the
+   author: placeholders instead of working-looking defaults, a generator command
+   per secret, the `CORS_ORIGIN` and destructive-test-database hazards stated
+   where they are configured, and the git-dependency install requirement stated
+   up front.
+9. **CI gaps closed.** `wyrhta-core` now runs on `main` instead of a `staging`
+   branch that does not exist, so the library every service pins finally has CI.
+   `KithLedger` and `heorth-mcp` gained real test workflows — both had been
+   publishing container images from commits nothing had tested. All four `tests`
+   workflows pass.
+10. **`SECURITY.md` and `CONTRIBUTING.md`** in all six repos, routing reports
+    through GitHub private vulnerability reporting because the project has no
+    domain or security mailbox.
+
+Then, at the flip: **private vulnerability reporting**, **secret scanning**,
+**push protection**, and **Dependabot alerts** enabled on all six repos.
+GitHub's own secret scanning reports **zero alerts** across all six — an
+independent check on the pattern sweep behind this document.
+
+## What is still open
+
+- **The container packages are still private.** `ghcr.io/wyrhta-labs/heorth`,
+  `…/kithledger`, and `…/heorth-mcp` are all private, and a package's visibility
+  is **not** inherited from its repository. Until they are flipped —
+  *Packages → \<name\> → Package settings → Change visibility*, which is UI-only,
+  there is no REST or GraphQL endpoint for it — `deploy/compose.prod.yml` fails
+  with `denied` / `unauthorized` for everyone but the maintainer.
+- **`@wyrhta/core`'s distribution is unresolved** (item 5 above). Until then the
+  first thing a visitor does — `npm install` — needs git and a working toolchain.
+- **Item 8** (two competing ways to run each service) is documented in Heorth's
+  README but not yet in KithLedger's.
+- **Stale cross-references** listed under *Worth knowing* are unfixed. The
+  history rewrites also changed every commit hash in this repo and in Heorth, so
+  the commit ranges recorded in `execution-log.md` and the SHAs cited in Heorth's
+  `CHANGELOG.md` no longer resolve.
