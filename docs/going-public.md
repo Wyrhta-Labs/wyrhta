@@ -234,8 +234,11 @@ independent check on the pattern sweep behind this document.
   *Packages → \<name\> → Package settings → Change visibility*, which is UI-only,
   there is no REST or GraphQL endpoint for it — `deploy/compose.prod.yml` fails
   with `denied` / `unauthorized` for everyone but the maintainer.
-- **`@wyrhta/core`'s distribution is unresolved** (item 5 above). Until then the
-  first thing a visitor does — `npm install` — needs git and a working toolchain.
+- **`@wyrhta/core`'s distribution is decided** ([ADR 0011](decisions/0011-core-is-published-to-npm.md)):
+  npmjs.com via trusted publishing, with the publish workflow already in the
+  repo. It is not live yet — the `@wyrhta` scope and the trusted publisher must
+  be registered on npmjs.com by hand first, and the consumers' pins move to a
+  semver range only after a version actually exists there.
 - **Item 8** (two competing ways to run each service) is documented in Heorth's
   README but not yet in KithLedger's.
 - **Stale cross-references** listed under *Worth knowing* are unfixed. The

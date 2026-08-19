@@ -14,6 +14,7 @@ Cross-cutting decisions that affect more than one Wyrhta Labs service.
 - [0008 — MCP as a standalone container over REST](0008-mcp-as-a-standalone-container-over-rest.md)
 - [0009 — Satellite token exchange: how member identity reaches a satellite](0009-satellite-token-exchange.md)
 - [0010 — `@wyrhta/core` stays a git dependency that builds on install](0010-core-stays-a-git-dependency-that-builds-on-install.md)
+- [0011 — `@wyrhta/core` is published to npm](0011-core-is-published-to-npm.md)
 
 ## Format
 
