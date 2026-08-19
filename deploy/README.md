@@ -49,11 +49,32 @@ It talks to `heorth` over the compose network (`HEORTH_BASE_URL=http://heorth:30
 — origin only; the client appends `/api/v1` itself) and waits for Heorth to be
 healthy before starting.
 
-`KITH_BASE_URL`/`KITH_API_KEY` are deliberately **unset**. The `kith.*` tools are
-not registered until member context can reach KithLedger (issue #1, task B11), so
-configuring them today would have no effect.
+It also serves the 13 `kith.*` tools (task B11). Those carry **member** identity,
+not a service key: heorth-mcp exchanges the caller's own `he_` key at Heorth for a
+short-lived, audience-bound member token (ADR 0009), which KithLedger verifies
+against Heorth's JWKS and provisions the member from just in time. heorth-mcp holds
+no signing key and cannot mint one; `KITH_API_KEY` is gone from it entirely.
 
 Prod pins `HEORTH_MCP_IMAGE_TAG`; dev builds from `../heorth-mcp`.
+
+## Satellite identity
+
+Heorth is the household's identity provider. It signs member tokens with
+`SATELLITE_SIGNING_KEY` (a single-line Ed25519 JWK — see `.env.example` for the
+generator) and publishes the public half, unauthenticated, at
+`/.well-known/jwks.json`. KithLedger only ever **verifies**; it holds no signing
+key and is structurally unable to mint a member token.
+
+Two things follow, and both are deliberate:
+
+- **The satellite key is not `HEORTH_JWT_SECRET`.** That secret also derives the
+  M365 refresh-token encryption key, so sharing it with a satellite would make a
+  satellite compromise a Heorth M365 compromise.
+- **`SATELLITE_AUDIENCES` is an allowlist.** A token can only be minted for a
+  satellite named there, so adding one is a deliberate deployment change.
+
+Key rotation is documented in Heorth's README; every step needs a restart, since
+keys are cached for the process lifetime.
 
 ## Databases
 

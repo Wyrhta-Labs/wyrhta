@@ -41,6 +41,10 @@ services:
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       CORS_ORIGIN: ${KITH_CORS_ORIGIN:-*}
+      # Satellite verification (ADR 0009). KithLedger only ever VERIFIES; it holds
+      # no signing key and cannot mint a member token.
+      HEORTH_JWKS_URL: ${HEORTH_JWKS_URL:-}
+      SATELLITE_AUDIENCE: ${SATELLITE_AUDIENCE:-}
     depends_on:
       db:
         condition: service_healthy
@@ -76,6 +80,17 @@ services:
       # is a startup error.
       KITH_BASE_URL: ${KITH_BASE_URL:-}
       KITH_API_KEY: ${KITH_API_KEY:-}
+      # Satellite identity (ADR 0002 Phase B / ADR 0009). Heorth signs short-lived
+      # member tokens with this key and publishes the public half at
+      # /.well-known/jwks.json. DISTINCT from JWT_SECRET, which also derives the
+      # M365 refresh-token encryption key and never leaves this service.
+      SATELLITE_SIGNING_KEY: ${SATELLITE_SIGNING_KEY:-}
+      SATELLITE_SIGNING_KID: ${SATELLITE_SIGNING_KID:-}
+      SATELLITE_SIGNING_ALG: ${SATELLITE_SIGNING_ALG:-EdDSA}
+      # Only satellites named here can be minted for. Adding one is deliberate.
+      SATELLITE_AUDIENCES: ${SATELLITE_AUDIENCES:-}
+      # The reminders feed presents a household-kinded kl_ key (ADR 0004 §2).
+      KITH_API_KEY_KIND: ${KITH_API_KEY_KIND:-}
     depends_on:
       db:
         condition: service_healthy
@@ -94,13 +109,17 @@ services:
     environment:
       # Origin only — the client appends /api/v1 itself.
       HEORTH_BASE_URL: http://heorth:3000
-      # KITH_BASE_URL/KITH_API_KEY are deliberately NOT set yet: the kith.*
-      # tools are not registered until member context reaches KithLedger
-      # (issue #1 task B11). Setting them today would do nothing.
+      # kith.* tools (task B11): no service key. heorth-mcp exchanges the
+      # caller's own he_ key at Heorth for a short-lived member token
+      # (ADR 0009) and presents that to KithLedger. KITH_API_KEY is gone.
+      KITH_BASE_URL: http://kithledger:3000
+      KITH_AUDIENCE: ${SATELLITE_AUDIENCE:-kithledger}
       PORT: 3200
       UPSTREAM_TIMEOUT_MS: ${UPSTREAM_TIMEOUT_MS:-10000}
     depends_on:
       heorth:
+        condition: service_healthy
+      kithledger:
         condition: service_healthy
     ports:
       - "4003:3200"
