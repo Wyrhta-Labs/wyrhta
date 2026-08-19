@@ -201,10 +201,7 @@ All of it on 2026-08-19. Numbering follows the items above.
    the household FQDN became `heorth.home.example.com`, absolute Windows paths
    became `/path/to/wyrhta`. A re-scan of both rewritten histories returns zero
    hits for the FQDN, the tenant and client IDs, the credential record ids, and
-   all three mailbox addresses. Both rewrites changed every commit hash in the
-   repo they touched, so commit ranges recorded in `execution-log.md` and SHAs
-   cited in Heorth's `CHANGELOG.md` no longer resolve — archaeology only,
-   nothing depends on them mechanically.
+   all three mailbox addresses.
 3. **Heorth's `run-local` skill generalised.** It described one specific machine;
    it now describes whatever the reader's own env files say — which is what
    `smoke.sh` already resolved at run time, so nothing was lost.
