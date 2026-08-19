@@ -108,8 +108,13 @@ which pins real image tags.
 
 ## Licence
 
-MIT — see [`LICENSE`](LICENSE). Every repo in the workspace carries the same
-licence, so a self-hoster may run, modify, and redistribute the whole stack.
+MIT — see [`LICENSE`](LICENSE). The four code repos (`wyrhta-core`, `Heorth`,
+`KithLedger`, `heorth-mcp`) carry the same licence, so a self-hoster may run,
+modify, and redistribute the whole stack.
+
+The `website` repo is the exception and carries **no** licence: it holds
+generative imagery that is not the maintainer's to sublicense. It is published
+to be read, not forked.
 
 ## Contributing and security
 
