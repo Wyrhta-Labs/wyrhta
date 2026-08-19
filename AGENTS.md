@@ -38,28 +38,25 @@ decision records).
 
 ## Working mode for this repo (IMPORTANT)
 
-- **Conceptual / architecture design only.** Work here produces docs under `docs/`.
-  **One exception: `deploy/`** holds the household stack's Docker Compose files
-  (`docs/plans/household-stack-compose.md`). It is the only runnable, non-docs
-  content this repo tracks, because the meta repo is the only place that knows
-  every service exists. This carve-out does not license editing code inside the
-  service folders — that rule is unchanged.
-- **Do not edit code inside `wyrhta-core/`, `Heorth/`, `KithLedger/`, or
-  `heorth-mcp/` directly from a session in this repo.** Those are separate repos with
-  their own agent instructions and conventions.
-  **Exception — orchestrated implementation (added 2026-08-18):** a session here may
-  *dispatch subagents* that work inside a service folder, for cross-repo programmes
-  the meta repo is coordinating (the ADR 0008 MCP migration is the first).
-  Conditions, all of them:
-  - The subagent's working directory is the **service folder**, and it reads and
-    follows that repo's own `CLAUDE.md` / `AGENTS.md` — meta-repo conventions do not
-    travel with it.
-  - It changes **only** that one repo, and commits in that repo.
-  - The orchestrating session still writes no service code with its own hands.
-  - Ad-hoc edits outside such a programme remain forbidden: open a session in the
-    relevant folder.
-- **Do not edit site code in `website/`** — the single exception is the website
-  content-transfer document described below.
+- **This repo's own content is docs.** Work *on this repo* produces docs under
+  `docs/`, plus `deploy/` — the household stack's Docker Compose files
+  (`docs/plans/household-stack-compose.md`), the only runnable content this repo
+  tracks, because the meta repo is the only place that knows every service exists.
+- **Work in the sibling repos may be done from a session here** (changed
+  2026-08-19; the previous rule confined a meta session to docs and allowed
+  service work only through dispatched subagents). A session in this folder may
+  edit, run, and commit inside `wyrhta-core/`, `Heorth/`, `KithLedger/`,
+  `heorth-mcp/`, and `website/` — directly or through subagents, whichever fits
+  the task. The boundaries that remain are about **repos**, not about who is
+  holding the keyboard:
+  - **Read the target repo's own `CLAUDE.md` / `AGENTS.md` before touching it**,
+    and follow it. Meta-repo conventions do not travel into a service; that repo's
+    conventions win inside it.
+  - **One change, one repo, one commit.** Each repo's changes are committed in
+    that repo. Never stage a sibling folder in the meta repo's index — all five
+    are git-ignored here, and a cross-repo change is several commits, not one.
+  - **Say which repo you are in.** When a turn touches more than one, report the
+    commits per repo.
 - Capture cross-cutting decisions as ADRs in `docs/decisions/`.
 
 ## Execution log (maintained automatically)
@@ -77,23 +74,27 @@ review the synced diff, then commit.
 
 ## Website content workflow (interim)
 
-Until there is a proper change workflow, **`website/docs/website-brief.md` is the
-standard transfer document for website content.** It is the one file this repo may write
-inside `website/`.
+**`website/docs/website-brief.md` is the standard transfer document for website
+content.** Since 2026-08-19 a meta session may also render the site itself (see
+"Working mode" above), so the brief is no longer a wall between two sessions — it
+stays because it is the artefact that keeps the site's claims traceable to a
+decision, and because it is what a later session reads to know what the site was
+told.
 
 Direction of flow is one-way: **`docs/strategy.md` (this repo) → `website-brief.md` →
 site copy.** `strategy.md` is the source of truth; the site is a downstream rendering and
 gets corrected to match, never the reverse.
 
-- **To hand new content to the site:** from a session in *this* repo, rewrite
-  `website/docs/website-brief.md` from `docs/strategy.md`, the ADRs, `IDEAS.md`, and
-  `manual-todo.md`. Update its `Generated:` date. Commit it in the `website` repo
-  (it is a separate repo; `/website/` is git-ignored here — never stage it in the meta
-  repo's index).
-- **To render it:** open a session in `website/` and treat the brief as **read-only
-  input**. Site sessions do not edit the brief.
-- **If the site session wants a strategy change:** bring it back here as an edit to
-  `docs/strategy.md` first, then re-issue the brief.
+- **To hand new content to the site:** rewrite `website/docs/website-brief.md` from
+  `docs/strategy.md`, the ADRs, `IDEAS.md`, and `manual-todo.md`. Update its
+  `Generated:` date. Commit it in the `website` repo (it is a separate repo;
+  `/website/` is git-ignored here — never stage it in the meta repo's index).
+- **To render it:** work in `website/` with the brief as **read-only input** — from
+  a session there or from one here. Rendering does not edit the brief: re-issue it
+  from this repo instead, so the site never becomes its own source.
+- **If rendering surfaces a strategy change:** make it here as an edit to
+  `docs/strategy.md` first, then re-issue the brief, then render. Same order whether
+  or not it is the same session.
 - **Honesty constraints carry with the brief:** distinguish shipped from planned, keep the
   one-maker framing, and never publish secrets, tenant IDs, mailbox addresses, client IDs,
   or FQDNs from `manual-todo.md`.
