@@ -19,7 +19,7 @@ conditionals.
 | `heorth` | 4000 | `heorth` |
 | `kithledger` | 4002 | `kithledger` |
 | `heorth-mcp` | 4003 | — (owns no data) |
-| `db` | 55490 (dev only) | — |
+| `db` | 5432 (dev only) | — |
 | `db-backup` | — | dumps both |
 
 HAProxy already fronts the household and terminates TLS
@@ -37,6 +37,29 @@ cp deploy/.env.example deploy/.env
 # Fill in every value. Both JWT secrets must differ.
 docker compose -f deploy/compose.prod.yml --env-file deploy/.env up -d
 ```
+
+### Registry login (required — `heorth-mcp` is a private image)
+
+`ghcr.io/wyrhta-labs/heorth-mcp` is **private**, so the docker host must be
+logged in to GHCR before the first `up -d`. Without it `compose.prod.yml` still
+*validates* (the pin resolves fine) but the pull fails with `denied` /
+`unauthorized` at bring-up. The other two images are public; this is the only
+service that needs it.
+
+The maintainer's `gh` token already carries the `read:packages` scope, so no
+separate PAT is needed:
+
+```bash
+gh auth status                     # expect read:packages among the scopes
+gh auth token | docker login ghcr.io -u cfoellmann --password-stdin
+docker pull ghcr.io/wyrhta-labs/heorth-mcp:main-0c293d6   # prove it, don't assume
+```
+
+This writes a credential into the host's docker config and persists across
+reboots — it is a one-time step per docker host. **The docker host is
+`localhost`** for now; there is no separate remote host yet, so the login above
+runs on this machine. Re-run it if the token is ever rotated or revoked: a
+`gho_`/`ghp_` token stored in docker's config does not follow `gh auth login`.
 
 ## heorth-mcp
 
@@ -56,6 +79,19 @@ against Heorth's JWKS and provisions the member from just in time. heorth-mcp ho
 no signing key and cannot mint one; `KITH_API_KEY` is gone from it entirely.
 
 Prod pins `HEORTH_MCP_IMAGE_TAG`; dev builds from `../heorth-mcp`.
+
+**Pin an immutable tag, never a moving one.** The repo's GitHub Actions workflow
+publishes `main-<short sha>` on every push to `main`, and also moves `main` and
+`latest` to that build. Only the `main-<sha>` form is safe to pin — `main` and
+`latest` would silently change what the household runs on the next `docker
+compose pull`. To find the current build:
+
+```bash
+gh api orgs/Wyrhta-Labs/packages/container/heorth-mcp/versions \
+  --jq '.[0:5][] | "\(.created_at)  \(.metadata.container.tags | join(","))"'
+```
+
+Bumping the pin requires the registry login above.
 
 ## Satellite identity
 
@@ -111,7 +147,7 @@ what stops a stray `npm test` from wiping it — as happened once already
 Point test suites at the `*_test` databases:
 
 ```bash
-export DATABASE_URL=postgres://heorth:<pw>@localhost:55490/heorth_test
+export DATABASE_URL=postgres://heorth:<pw>@localhost:5432/heorth_test
 ```
 
 Do **not** point a test run at a primary database (`heorth`,
@@ -125,15 +161,21 @@ points its local dev config at `<service>_dev` (e.g. `heorth_dev`), and those
 database *names* are preserved here rather than renumbered.
 
 **The port is not.** Every service repo's `.env` still reads
-`postgres://kith:kithpw@localhost:55432/<service>_dev`, and this stack now
-publishes **55490** (see the comment in `compose.dev.yml` — 55432 falls inside a
-Hyper-V/WSL excluded port range on the current host). Since `kith-testdb` is
-retired, nothing listens on 55432 at all, so those configs are stale and will
-fail to connect. Each service repo must update its own `.env` — and the
-credentials too: this cluster uses per-service roles
-(`postgres://<service>:<pw>@localhost:55490/<service>_dev`), not the old shared
+`postgres://kith:kithpw@localhost:55432/<service>_dev`, and this stack publishes
+**5432** (`compose.dev.yml`, the `db` service). Since `kith-testdb` is retired,
+nothing listens on 55432 at all, so those configs are stale and will fail to
+connect. Each service repo must update its own `.env` — and the credentials too:
+this cluster uses per-service roles
+(`postgres://<service>:<pw>@localhost:5432/<service>_dev`), not the old shared
 `kith:kithpw`. `Heorth/CLAUDE.md` also still documents the old
 `localhost:55432/heorth_test`.
+
+> An earlier revision of this file said the stack publishes **55490**, on the
+> grounds that 55432 falls inside a Hyper-V/WSL excluded port range on this host.
+> That is not what `compose.dev.yml` does — it maps `5432:5432`, and
+> `docker port wyrhta-dev-db-1` confirms `0.0.0.0:5432`. Corrected 2026-08-19;
+> if the excluded-range problem resurfaces, change the Compose file and this
+> file together.
 
 ## Backups
 
