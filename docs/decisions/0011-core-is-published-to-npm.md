@@ -96,7 +96,12 @@ git dependency as its published form.
 - **Two publication surfaces per release.** A tag both publishes to npm and, for
   the services, builds a container image. They can now disagree; the version
   guard in the workflow is what keeps the npm side honest.
-- **The consumers' pins are not yet switched.** They stay on the git tag until a
-  version actually exists on npm, so nothing depends on a package that has not
-  been published. That switch is a separate, deliberate commit in each consumer
-  repo.
+- **Done 2026-08-19:** `0.3.1` is published, and Heorth and KithLedger both
+  moved from the git tag to `^0.3.1`. Their `allowScripts` entries went with it —
+  they pinned a core commit that install no longer clones.
+- **The bootstrap publish was manual, and that is inherent.** npm cannot attach a
+  trusted publisher to a package that does not exist, so the first upload of a
+  new name can never come from OIDC. It also cannot come from a non-interactive
+  shell: npm requires a 2FA one-time password for direct publishing and blocks
+  waiting on a browser round-trip. First publish is a human at a terminal, once
+  per package; everything after is CI.

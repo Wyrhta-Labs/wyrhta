@@ -237,12 +237,15 @@ independent check on the pattern sweep behind this document.
   `deploy/.env`'s pins were repointed in the same pass: `HEORTH_IMAGE_TAG` and
   `KITH_IMAGE_TAG` had named `v`-prefixed tags that never existed, so
   `compose.prod.yml` could not have pulled two of three services at any point.
-- **`@wyrhta/core` is not on npm yet.** The publish workflow
-  ([ADR 0011](decisions/0011-core-is-published-to-npm.md)) runs correctly and
-  signs provenance, but npm returns `404 PUT` because a trusted publisher cannot
-  be configured for a package that does not exist. The first publish must be a
-  manual, authenticated `npm publish --access public`; CI takes over from the
-  next tag. Consumers stay on the git pin until then.
+- **`@wyrhta/core` is on npm.** `0.3.1` is published
+  ([ADR 0011](decisions/0011-core-is-published-to-npm.md)), MIT, with all eight
+  export subpaths. Heorth and KithLedger now depend on `^0.3.1` from the
+  registry, so a first install needs neither git nor a TypeScript toolchain and
+  no longer builds a second repository mid-install — the item-5 problem is
+  closed. The bootstrap publish had to be manual: a trusted publisher cannot be
+  configured for a package that does not exist, and npm's 2FA prompt needs a real
+  terminal. Releases from the next tag onward go out from CI over OIDC with
+  provenance.
 - **Dependabot's first scan found 8 open advisories in `wyrhta-core`** — 2 high
   (`drizzle-orm`, runtime; `postcss`, dev), 5 moderate, 1 low. Nothing to do with
   going public, but the alerts only became visible once the feature was on.
