@@ -85,9 +85,30 @@ HTTPS fetch resolves — but it means every consumer install needs `git`, a full
 TypeScript toolchain, and a successful build of a *second* repo before `npm ci`
 returns. The known cold-cache failure on Windows (`esbuild.exe ENOENT` inside the
 `_cacache/tmp/git-clone…` path) is exactly the class of thing a first-time user
-hits and cannot debug. Document it prominently in both consumer READMEs, and
-consider publishing core to npm (or attaching a prebuilt tarball to the tag) so
-the happy path stops depending on a local build.
+hits and cannot debug. Both consumer READMEs now state the requirement up front.
+
+**Can core be hosted as a package on GitHub instead?** Yes — GitHub Packages has
+an npm registry (`npm.pkg.github.com`) — but it does not solve this problem.
+GitHub's own documentation is explicit: *"You need an access token to publish,
+install, and delete private, internal, and **public** packages."* Unlike
+`ghcr.io`, which serves public container images anonymously, the npm registry
+requires every consumer to hold a personal access token and a `.npmrc`. For a
+public self-hosted project that is strictly worse than today's git dependency,
+which at least installs anonymously.
+
+The two options that actually help, in order:
+
+1. **Publish `@wyrhta/core` to npmjs.com** (`npm publish --access public`, needs
+   the `wyrhta` scope registered there). Anonymous `npm ci`, no build on install,
+   no git required — the normal experience. This is the real fix.
+2. **Attach a tarball to each GitHub release.** `npm pack` in the release
+   workflow, upload the `.tgz` as a release asset, and consumers pin
+   `https://github.com/Wyrhta-Labs/wyrhta-core/releases/download/v0.3.0/wyrhta-core-0.3.0.tgz`.
+   Anonymous, prebuilt, no registry account anywhere. Keeps everything inside
+   GitHub, which is presumably what the question was after.
+
+Either one supersedes part of ADR 0010 and deserves its own ADR rather than a
+quiet change.
 
 ### 6. The `heorth-mcp` image is private, and package visibility is separate from repo visibility
 
