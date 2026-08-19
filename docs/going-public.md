@@ -228,17 +228,24 @@ independent check on the pattern sweep behind this document.
 
 ## What is still open
 
-- **The container packages are still private.** `ghcr.io/wyrhta-labs/heorth`,
-  `…/kithledger`, and `…/heorth-mcp` are all private, and a package's visibility
-  is **not** inherited from its repository. Until they are flipped —
-  *Packages → \<name\> → Package settings → Change visibility*, which is UI-only,
-  there is no REST or GraphQL endpoint for it — `deploy/compose.prod.yml` fails
-  with `denied` / `unauthorized` for everyone but the maintainer.
-- **`@wyrhta/core`'s distribution is decided** ([ADR 0011](decisions/0011-core-is-published-to-npm.md)):
-  npmjs.com via trusted publishing, with the publish workflow already in the
-  repo. It is not live yet — the `@wyrhta` scope and the trusted publisher must
-  be registered on npmjs.com by hand first, and the consumers' pins move to a
-  semver range only after a version actually exists there.
+- **The container packages are public and pruned.** All three
+  (`ghcr.io/wyrhta-labs/{heorth,kithledger,heorth-mcp}`) are public. 126 stale
+  per-commit build versions were deleted on 2026-08-19, keeping the moving
+  pointers (`latest`/`main`, `staging`), every semver release tag, and each kept
+  index's manifest children — all nine surviving tags verified to pull
+  anonymously afterwards. Deletions are restorable for 30 days.
+  `deploy/.env`'s pins were repointed in the same pass: `HEORTH_IMAGE_TAG` and
+  `KITH_IMAGE_TAG` had named `v`-prefixed tags that never existed, so
+  `compose.prod.yml` could not have pulled two of three services at any point.
+- **`@wyrhta/core` is not on npm yet.** The publish workflow
+  ([ADR 0011](decisions/0011-core-is-published-to-npm.md)) runs correctly and
+  signs provenance, but npm returns `404 PUT` because a trusted publisher cannot
+  be configured for a package that does not exist. The first publish must be a
+  manual, authenticated `npm publish --access public`; CI takes over from the
+  next tag. Consumers stay on the git pin until then.
+- **Dependabot's first scan found 8 open advisories in `wyrhta-core`** — 2 high
+  (`drizzle-orm`, runtime; `postcss`, dev), 5 moderate, 1 low. Nothing to do with
+  going public, but the alerts only became visible once the feature was on.
 - **Item 8** (two competing ways to run each service) is documented in Heorth's
   README but not yet in KithLedger's.
 - **Stale cross-references** listed under *Worth knowing* are unfixed. The
