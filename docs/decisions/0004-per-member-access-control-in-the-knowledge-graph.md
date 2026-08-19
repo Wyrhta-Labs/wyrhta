@@ -2,7 +2,7 @@
 
 **Status:** **accepted** 2026-08-19 (proposed 2026-07-26) · Ratified when built —
 see "Amendments on ratification" at the end for what changed on contact with the
-code. · **Tracking:** `Wyrhta-Labs/wyrhta-labs` issue #1 (tasks B4–B9)
+code. · **Tracking:** `Wyrhta-Labs/wyrhta` issue #1 (tasks B4–B9)
 
 ## Context
 

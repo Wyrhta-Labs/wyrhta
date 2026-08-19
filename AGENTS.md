@@ -18,7 +18,7 @@ This root folder is a container. Each subfolder is its **own independent git rep
 | `Feoh/` | `Wyrhta-Labs/Feoh` (private) | Personal-finance service — merged into Heorth (ADR 0007); repo archived |
 | `website/` | `Wyrhta-Labs/website` | Public site. **Do not edit site code from here** — the only permitted write is the content-transfer file (see below) |
 
-This repo (`Wyrhta-Labs/wyrhta-labs`) tracks only: this `AGENTS.md` (plus the
+This repo (`Wyrhta-Labs/wyrhta`) tracks only: this `AGENTS.md` (plus the
 `CLAUDE.md` pointer to it), `.claude/`, and `docs/` (the concept + architecture
 decision records).
 

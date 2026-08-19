@@ -102,4 +102,4 @@ Consequence for this decision's cost line: Programme B is larger than the MCP
 migration it unblocks, and its nine-deep dependency chain — not the tool porting —
 sets the timeline. The 37 Heorth tools are unaffected and proceed in parallel.
 
-Tracking: `Wyrhta-Labs/wyrhta-labs` issue #1.
+Tracking: `Wyrhta-Labs/wyrhta` issue #1.
