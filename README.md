@@ -1,9 +1,15 @@
-# Wyrhta Labs
+# Wyrhta
 
-The umbrella repo for **Wyrhta Labs** — an interconnected, self-hosted household
-manager built from several independent services. This repo holds no application
-code. It holds the cross-cutting concept, the architecture decision records, and
-the Docker Compose stack that knows every service exists.
+**Wyrhta** is the ecosystem around **[Heorth](https://github.com/Wyrhta-Labs/Heorth)** —
+an interconnected, self-hosted household manager. Heorth is the hub: the household
+system a family actually opens. Everything else in Wyrhta exists to serve it — a
+shared foundation library, satellite services it consumes, one MCP server that fronts
+them all, and the site that explains them.
+
+This is the **meta repo** (`Wyrhta-Labs/wyrhta`, renamed from `wyrhta-labs`). It holds
+no application code. It holds the cross-cutting concept, the architecture decision
+records, and the Docker Compose stack — because it is the only place that knows every
+service exists.
 
 - **Concept & architecture:** [`docs/`](docs/) — start at [`docs/README.md`](docs/README.md)
 - **Strategy & roadmap:** [`docs/strategy.md`](docs/strategy.md) (source of truth)
@@ -11,20 +17,32 @@ the Docker Compose stack that knows every service exists.
 - **Glossary:** [`CONTEXT.md`](CONTEXT.md)
 - **The stack:** [`deploy/`](deploy/)
 
-## The repos
+> **Naming.** *Wyrhta* (OE *wyrhta*, "maker, wright") is the ecosystem and this repo.
+> *Wyrhta-Labs* is only the GitHub organisation that hosts it, and `ghcr.io/wyrhta-labs`
+> the image namespace. *Heorth* (OE "hearth") is the product at the centre.
 
-Each service is its **own** GitHub repo, not a submodule and not a monorepo
-package. They share the `@wyrhta/core` library by **pinned git tag**, so a change
-in core only reaches a consumer when a new tag is cut and the consumer's
-`package.json` pin is deliberately bumped.
+## The ecosystem
 
-| Folder | Repo | What it is |
+Heorth sits in the middle. Each of the others is its **own** GitHub repo — not a
+submodule, not a monorepo package. They share the `@wyrhta/core` library as a
+**published npm package** ([ADR 0011](docs/decisions/0011-core-is-published-to-npm.md)),
+so a change in core only reaches a consumer when a release is cut and the consumer's
+`package.json` range allows it — pre-1.0 that means a deliberate bump for anything
+beyond a patch.
+
+| Folder | Repo | Role in the ecosystem |
 |---|---|---|
-| `wyrhta-core/` | [`Wyrhta-Labs/wyrhta-core`](https://github.com/Wyrhta-Labs/wyrhta-core) | Shared foundation `@wyrhta/core`: identity, auth, HTTP kit, household, DB conventions |
-| `Heorth/` | [`Wyrhta-Labs/Heorth`](https://github.com/Wyrhta-Labs/Heorth) | The flagship household system (calendar, meals, finance, library, inventory) |
-| `KithLedger/` | [`Wyrhta-Labs/KithLedger`](https://github.com/Wyrhta-Labs/KithLedger) | API-first personal relationship manager |
+| `Heorth/` | [`Wyrhta-Labs/Heorth`](https://github.com/Wyrhta-Labs/Heorth) | **The hub.** The flagship household system (calendar, meals, finance, library, inventory) — one deployment per household |
+| `wyrhta-core/` | [`Wyrhta-Labs/wyrhta-core`](https://github.com/Wyrhta-Labs/wyrhta-core) | The shared foundation `@wyrhta/core`: identity, auth, HTTP kit, household, DB conventions |
+| `KithLedger/` | [`Wyrhta-Labs/KithLedger`](https://github.com/Wyrhta-Labs/KithLedger) | A satellite: API-first personal relationship manager, consumed by Heorth over its REST API |
 | `heorth-mcp/` | [`Wyrhta-Labs/heorth-mcp`](https://github.com/Wyrhta-Labs/heorth-mcp) | The household's single MCP server, a pure REST client of the services (ADR 0008) |
 | `website/` | [`Wyrhta-Labs/website`](https://github.com/Wyrhta-Labs/website) | The public site |
+
+Two rules shape the whole ecosystem, and both are ADRs rather than habits:
+services expose **REST only** — MCP is a separate container that fronts them
+([ADR 0008](docs/decisions/0008-mcp-as-a-standalone-container-over-rest.md)) — and
+identity is **Heorth-issued**, satellites holding service keys until they grow real
+UIs ([ADR 0002](docs/decisions/0002-cross-service-identity-a-then-b.md)).
 
 Those five folders are **git-ignored here** — this repo tracks only its own docs,
 `deploy/`, and the agent instructions. Cloning this repo alone gives you the
