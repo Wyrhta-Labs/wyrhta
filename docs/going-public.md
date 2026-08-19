@@ -201,7 +201,10 @@ All of it on 2026-08-19. Numbering follows the items above.
    the household FQDN became `heorth.home.example.com`, absolute Windows paths
    became `/path/to/wyrhta`. A re-scan of both rewritten histories returns zero
    hits for the FQDN, the tenant and client IDs, the credential record ids, and
-   all three mailbox addresses.
+   all three mailbox addresses. Both rewrites changed every commit hash in the
+   repo they touched, so commit ranges recorded in `execution-log.md` and SHAs
+   cited in Heorth's `CHANGELOG.md` no longer resolve — archaeology only,
+   nothing depends on them mechanically.
 3. **Heorth's `run-local` skill generalised.** It described one specific machine;
    it now describes whatever the reader's own env files say — which is what
    `smoke.sh` already resolved at run time, so nothing was lost.
@@ -234,8 +237,11 @@ All of it on 2026-08-19. Numbering follows the items above.
    per secret, and the two hazards that can actually hurt (`CORS_ORIGIN=*` on a
    service holding finance data, and a `DATABASE_URL` the test suite truncates)
    stated where they are configured rather than in a distant document.
-8. **Partly done.** Heorth's README now says which of the two run paths is
-   supported for an outsider. KithLedger's does not yet.
+8. **Both service READMEs now say which run path is supported** — this repo's
+   `deploy/` stack or the service's own `docker-compose.yml` — and that running
+   both against one database is a mistake. Each also names its two unsafe
+   defaults (`CORS_ORIGIN=*`, and the `DATABASE_URL` the test suite truncates) in
+   the README a reader actually follows, not only in `.env.example`.
 9. **CI gaps closed.** `wyrhta-core` runs on `main` instead of a `staging` branch
    that does not exist, so the library every service depends on finally has CI.
    `KithLedger` and `heorth-mcp` gained real test workflows — both had been
@@ -250,30 +256,31 @@ scanning**, **push protection**, and **Dependabot alerts** enabled.
 
 ## What is still open
 
-- **Dependency advisories, and KithLedger is the problem.** Turning Dependabot on
-  made a backlog visible that has nothing to do with going public:
+**Dependency advisories — deferred to dedicated sessions.** Turning Dependabot on
+made a pre-existing backlog visible. It has nothing to do with going public and
+is not being fixed here; this is the handover note.
 
-  | Repo | Open advisories |
-  |---|---|
-  | `KithLedger` | **3 critical, 15 high**, 38 moderate, 4 low |
-  | `Heorth` | 2 high, 7 moderate, 1 low |
-  | `wyrhta-core` | 2 high, 5 moderate, 1 low |
-  | `wyrhta`, `heorth-mcp`, `website` | none |
+| Repo | Open advisories |
+|---|---|
+| `KithLedger` | **3 critical, 15 high**, 38 moderate, 4 low |
+| `Heorth` | 2 high, 7 moderate, 1 low |
+| `wyrhta-core` | 2 high, 5 moderate, 1 low |
+| `wyrhta`, `heorth-mcp`, `website` | none |
 
-  Most are development-scope (`vite`, `vitest`, `postcss`, `shell-quote`,
-  `brace-expansion`) and split across KithLedger's two lockfiles, root and
-  `web/`. The ones that reach production are the short list worth doing first:
-  **`drizzle-orm`** and **`hono`** at runtime in both services — `drizzle-orm`
-  propagates from `wyrhta-core`, so it is one fix in one place — plus
-  **`seroval`** and **`lodash-es`** in KithLedger's web bundle.
-- **Item 8** — KithLedger's README still does not say which run path is
-  supported.
-- **The history rewrites invalidated recorded commit hashes.** Every hash in this
-  repo and in Heorth changed, so the commit ranges in `execution-log.md` and the
-  SHAs cited in Heorth's `CHANGELOG.md` no longer resolve. Nothing depends on
-  them mechanically; they are now archaeology.
-- **Stale cross-references** under *Worth knowing* are unfixed: `heorth-mcp`'s
-  README still calls this repo `wyrhta-labs`, `CONTEXT.md` still describes Feoh
-  as gated by a switch removed on 2026-08-17, and the docs link to
-  `Wyrhta-Labs/Feoh`, which is private and archived — a dead link for every
-  public reader.
+The count overstates the risk. Most are development-scope — `vite`, `vitest`,
+`postcss`, `shell-quote`, `brace-expansion` — and KithLedger's are split across
+two lockfiles, root and `web/`, which double-counts anything shared.
+
+Whoever picks this up should start with the ones that reach production:
+
+1. **`drizzle-orm`** (runtime, both services). It propagates from
+   `wyrhta-core`, so it is one bump in one repo, then a `^` range bump in each
+   consumer — and with core on npm those upgrades are now ordinary dependency
+   updates rather than tag-and-repin ceremony.
+2. **`hono`** (runtime, both services).
+3. **`seroval`** and **`lodash-es`** (runtime, KithLedger's web bundle).
+
+Everything after that is toolchain hygiene and can move in bulk. Note that
+KithLedger's suite is the one with real coverage to catch a breaking bump, and it
+now runs in CI — so these upgrades are verifiable in a way they were not a day
+ago.
