@@ -8,12 +8,13 @@
 follows is the audit as it stood before that, kept as the record of what was
 found and fixed; the closing section tracks what is done and what is left.
 
-**Headline: no live secret was found in any repo's history.** No `.env` was ever
-committed, in any of the six. No private key, no PAT, no cloud credential, no
-`kl_`/`he_` key value. The CI workflows use throwaway CI passwords and the
-built-in `secrets.GITHUB_TOKEN`. What blocks the flip is **household PII and
-tenant identifiers in this repo's docs**, and the fact that **no repo has a
-licence**.
+**Headline: no live secret was found in any repo's history.** No `.env` had ever
+been committed, in any of the six. No private key, no PAT, no cloud credential,
+no `kl_`/`he_` key value. The CI workflows use throwaway CI passwords and the
+built-in `secrets.GITHUB_TOKEN`. GitHub's own secret scanning, enabled at the
+flip, agrees: **0 alerts across all six repos.** What blocked the flip was
+**household PII and tenant identifiers in this repo's docs**, and the fact that
+**no repo had a licence**. Both are fixed.
 
 ---
 
@@ -190,68 +191,89 @@ PRs arrive with the right expectations.
 
 ## What was done
 
-Completed 2026-08-19, before the repos were made public:
+All of it on 2026-08-19. Numbering follows the items above.
 
 1. **`docs/manual-todo.md` removed from history** (`git filter-repo`) and
-   git-ignored. The meta repo went 73 → 68 commits; five commits touched nothing
-   else and were pruned. The file still exists in the maintainer's checkout.
-2. **Deployment identifiers redacted in tree and history**, in this repo and in
-   Heorth: the household FQDN became `heorth.home.example.com`, absolute Windows
-   paths became `/path/to/wyrhta`. A full re-scan of both rewritten histories
-   returns zero hits for the FQDN, the tenant and client IDs, the credential
-   record ids, and all three mailbox addresses.
-3. **Heorth's `run-local` skill generalised** — it described one specific
-   machine; it now describes whatever the reader's own env files say, which is
-   what `smoke.sh` already resolved at run time.
-4. **MIT licence** added to the four code repos plus this one, with the `license`
-   field in each `package.json`. The `website` repo deliberately carries **no**
-   licence: it holds generative imagery that is not the maintainer's to
-   sublicense.
+   git-ignored. The meta repo went 73 → 68 commits; five touched nothing else
+   and were pruned. The file still exists in the maintainer's checkout — it was
+   untracked, not deleted.
+2. **Deployment identifiers redacted in tree and history**, here and in Heorth:
+   the household FQDN became `heorth.home.example.com`, absolute Windows paths
+   became `/path/to/wyrhta`. A re-scan of both rewritten histories returns zero
+   hits for the FQDN, the tenant and client IDs, the credential record ids, and
+   all three mailbox addresses.
+3. **Heorth's `run-local` skill generalised.** It described one specific machine;
+   it now describes whatever the reader's own env files say — which is what
+   `smoke.sh` already resolved at run time, so nothing was lost.
+4. **MIT licence** in the four code repos and this one, with the `license` field
+   in each `package.json`. The `website` repo deliberately carries **no** licence:
+   it holds generative imagery that is not the maintainer's to sublicense, so an
+   MIT grant there would be a claim that cannot be backed.
+5. **`@wyrhta/core` is on npm** — `0.3.1`, MIT, all eight export subpaths, via
+   trusted publishing ([ADR 0011](decisions/0011-core-is-published-to-npm.md)).
+   Heorth and KithLedger depend on `^0.3.1` from the registry and their
+   `allowScripts` blocks are gone. A first install now needs neither `git` nor a
+   TypeScript toolchain and no longer builds a second repository mid-install;
+   both consumers' full suites pass on clean runners against the registry
+   tarball. The bootstrap publish had to be manual and always will be for a new
+   package name — npm cannot attach a trusted publisher to a package that does
+   not exist, and its 2FA prompt blocks on a browser round-trip, so it needs a
+   real terminal. Every later tag publishes from CI over OIDC with provenance.
+6. **The container packages are public and pruned.** All three are public —
+   package visibility is *not* inherited from the repository, and GitHub exposes
+   no API for it, so this was a manual step. 126 stale per-commit versions were
+   deleted, keeping the moving pointers (`latest`/`main`, `staging`), every
+   semver release tag, and each kept index's manifest children; all surviving
+   tags were then verified to pull anonymously. Deletions are restorable for 30
+   days. `deploy/.env`'s pins were repointed in the same pass — `HEORTH_IMAGE_TAG`
+   and `KITH_IMAGE_TAG` named `v`-prefixed tags that never existed, so
+   `compose.prod.yml` could not have pulled two of three services at any point
+   before this.
 7. **Heorth's `.env.example` and README** rewritten for a reader who is not the
    author: placeholders instead of working-looking defaults, a generator command
-   per secret, the `CORS_ORIGIN` and destructive-test-database hazards stated
-   where they are configured, and the git-dependency install requirement stated
-   up front.
-9. **CI gaps closed.** `wyrhta-core` now runs on `main` instead of a `staging`
-   branch that does not exist, so the library every service pins finally has CI.
+   per secret, and the two hazards that can actually hurt (`CORS_ORIGIN=*` on a
+   service holding finance data, and a `DATABASE_URL` the test suite truncates)
+   stated where they are configured rather than in a distant document.
+8. **Partly done.** Heorth's README now says which of the two run paths is
+   supported for an outsider. KithLedger's does not yet.
+9. **CI gaps closed.** `wyrhta-core` runs on `main` instead of a `staging` branch
+   that does not exist, so the library every service depends on finally has CI.
    `KithLedger` and `heorth-mcp` gained real test workflows — both had been
    publishing container images from commits nothing had tested. All four `tests`
    workflows pass.
 10. **`SECURITY.md` and `CONTRIBUTING.md`** in all six repos, routing reports
     through GitHub private vulnerability reporting because the project has no
-    domain or security mailbox.
+    domain or security mailbox to publish.
 
-Then, at the flip: **private vulnerability reporting**, **secret scanning**,
-**push protection**, and **Dependabot alerts** enabled on all six repos.
-GitHub's own secret scanning reports **zero alerts** across all six — an
-independent check on the pattern sweep behind this document.
+At the flip, on all six repos: **private vulnerability reporting**, **secret
+scanning**, **push protection**, and **Dependabot alerts** enabled.
 
 ## What is still open
 
-- **The container packages are public and pruned.** All three
-  (`ghcr.io/wyrhta-labs/{heorth,kithledger,heorth-mcp}`) are public. 126 stale
-  per-commit build versions were deleted on 2026-08-19, keeping the moving
-  pointers (`latest`/`main`, `staging`), every semver release tag, and each kept
-  index's manifest children — all nine surviving tags verified to pull
-  anonymously afterwards. Deletions are restorable for 30 days.
-  `deploy/.env`'s pins were repointed in the same pass: `HEORTH_IMAGE_TAG` and
-  `KITH_IMAGE_TAG` had named `v`-prefixed tags that never existed, so
-  `compose.prod.yml` could not have pulled two of three services at any point.
-- **`@wyrhta/core` is on npm.** `0.3.1` is published
-  ([ADR 0011](decisions/0011-core-is-published-to-npm.md)), MIT, with all eight
-  export subpaths. Heorth and KithLedger now depend on `^0.3.1` from the
-  registry, so a first install needs neither git nor a TypeScript toolchain and
-  no longer builds a second repository mid-install — the item-5 problem is
-  closed. The bootstrap publish had to be manual: a trusted publisher cannot be
-  configured for a package that does not exist, and npm's 2FA prompt needs a real
-  terminal. Releases from the next tag onward go out from CI over OIDC with
-  provenance.
-- **Dependabot's first scan found 8 open advisories in `wyrhta-core`** — 2 high
-  (`drizzle-orm`, runtime; `postcss`, dev), 5 moderate, 1 low. Nothing to do with
-  going public, but the alerts only became visible once the feature was on.
-- **Item 8** (two competing ways to run each service) is documented in Heorth's
-  README but not yet in KithLedger's.
-- **Stale cross-references** listed under *Worth knowing* are unfixed. The
-  history rewrites also changed every commit hash in this repo and in Heorth, so
-  the commit ranges recorded in `execution-log.md` and the SHAs cited in Heorth's
-  `CHANGELOG.md` no longer resolve.
+- **Dependency advisories, and KithLedger is the problem.** Turning Dependabot on
+  made a backlog visible that has nothing to do with going public:
+
+  | Repo | Open advisories |
+  |---|---|
+  | `KithLedger` | **3 critical, 15 high**, 38 moderate, 4 low |
+  | `Heorth` | 2 high, 7 moderate, 1 low |
+  | `wyrhta-core` | 2 high, 5 moderate, 1 low |
+  | `wyrhta`, `heorth-mcp`, `website` | none |
+
+  Most are development-scope (`vite`, `vitest`, `postcss`, `shell-quote`,
+  `brace-expansion`) and split across KithLedger's two lockfiles, root and
+  `web/`. The ones that reach production are the short list worth doing first:
+  **`drizzle-orm`** and **`hono`** at runtime in both services — `drizzle-orm`
+  propagates from `wyrhta-core`, so it is one fix in one place — plus
+  **`seroval`** and **`lodash-es`** in KithLedger's web bundle.
+- **Item 8** — KithLedger's README still does not say which run path is
+  supported.
+- **The history rewrites invalidated recorded commit hashes.** Every hash in this
+  repo and in Heorth changed, so the commit ranges in `execution-log.md` and the
+  SHAs cited in Heorth's `CHANGELOG.md` no longer resolve. Nothing depends on
+  them mechanically; they are now archaeology.
+- **Stale cross-references** under *Worth knowing* are unfixed: `heorth-mcp`'s
+  README still calls this repo `wyrhta-labs`, `CONTEXT.md` still describes Feoh
+  as gated by a switch removed on 2026-08-17, and the docs link to
+  `Wyrhta-Labs/Feoh`, which is private and archived — a dead link for every
+  public reader.
