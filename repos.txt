@@ -1,0 +1,12 @@
+# The Wyrhta Labs workspace: one line per sibling checkout.
+#
+#   <folder> <owner/repo>
+#
+# Read by scripts/clone-all.ps1 and scripts/clone-all.sh. Folder names are
+# load-bearing: deploy/compose.dev.yml builds from ../Heorth, ../KithLedger and
+# ../heorth-mcp, so the capitalisation must match exactly.
+wyrhta-core  Wyrhta-Labs/wyrhta-core
+Heorth       Wyrhta-Labs/Heorth
+KithLedger   Wyrhta-Labs/KithLedger
+heorth-mcp   Wyrhta-Labs/heorth-mcp
+website      Wyrhta-Labs/website

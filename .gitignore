@@ -31,3 +31,9 @@ npm-debug.log*
 
 # --- Ad-hoc DB dumps taken as guardrails before destructive deploy changes ---
 /deploy/*.sql
+
+# --- Operator's private ops log ---
+# Deployment state, not architecture: tenant identifiers, mailbox addresses,
+# hostnames, credential record ids. Kept locally, never published. Removed from
+# this repo's history 2026-08-19 (docs/going-public.md, item 1).
+/docs/manual-todo.md
