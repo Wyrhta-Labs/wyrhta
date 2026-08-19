@@ -202,8 +202,8 @@ complete or absent.
 ## Non-goals
 
 Reverse proxy and TLS. The household **already runs HAProxy** —
-`manual-todo.md` §6 records that `heorth.home.example.com` resolves to it and
-only the route to the docker host is missing. Terminating TLS a second time
+The household FQDN (`heorth.home.example.com` in these docs) already resolves
+to it; only the route to the docker host is missing. Terminating TLS a second time
 inside the stack would duplicate infrastructure that exists; the stack publishes
 ports on the docker host and HAProxy stays the edge. Also out of scope:
 `website-v0` in any form, replacing the per-repo single-service

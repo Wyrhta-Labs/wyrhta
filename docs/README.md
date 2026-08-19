@@ -28,6 +28,15 @@ _(`website` — the public site. Content reaches it one way, via the transfer do
   built per phase: commit ranges, tags, adjudicated deviations, deferred findings.
 - [`../CONTEXT.md`](../CONTEXT.md) — the cross-service glossary.
 
+> Some documents here cite `manual-todo.md` — the operator's log of steps that
+> need tenant or hardware access. It is deliberately **not** part of this repo:
+> it holds deployment state (tenant identifiers, mailbox addresses, hostnames),
+> so it lives only in the maintainer's checkout and is git-ignored. Those
+> citations will not resolve for you, and nothing in the architecture depends on
+> them.
+- [`going-public.md`](going-public.md) — the audit and checklist for making the
+  repos public: what leaks, what blocks, what a stranger trips over.
+
 ## Cross-service conventions
 
 - **Dev port allocation** (so all services run side by side locally):

@@ -38,28 +38,33 @@ cp deploy/.env.example deploy/.env
 docker compose -f deploy/compose.prod.yml --env-file deploy/.env up -d
 ```
 
-### Registry login (required — `heorth-mcp` is a private image)
+### Registry login (only while the images are private)
 
-`ghcr.io/wyrhta-labs/heorth-mcp` is **private**, so the docker host must be
-logged in to GHCR before the first `up -d`. Without it `compose.prod.yml` still
-*validates* (the pin resolves fine) but the pull fails with `denied` /
-`unauthorized` at bring-up. The other two images are public; this is the only
-service that needs it.
+The stack pulls `heorth`, `kithledger`, and `heorth-mcp` from
+`ghcr.io/wyrhta-labs/*`. **A GitHub package is not made public by making its
+repository public** — visibility is set per package, in
+*Packages → <name> → Package settings → Change visibility*.
 
-The maintainer's `gh` token already carries the `read:packages` scope, so no
-separate PAT is needed:
+For any of those three that is still private, the docker host must log in to
+GHCR before the first `up -d`. Without it `compose.prod.yml` still *validates*
+(the pin resolves fine) but the pull fails with `denied` / `unauthorized`.
+
+A `gh` token carrying the `read:packages` scope is enough; no separate PAT is
+needed:
 
 ```bash
 gh auth status                     # expect read:packages among the scopes
-gh auth token | docker login ghcr.io -u cfoellmann --password-stdin
-docker pull ghcr.io/wyrhta-labs/heorth-mcp:main-0c293d6   # prove it, don't assume
+gh auth token | docker login ghcr.io -u <your-github-username> --password-stdin
+docker pull ghcr.io/wyrhta-labs/heorth-mcp:<tag>   # prove it, don't assume
 ```
 
 This writes a credential into the host's docker config and persists across
-reboots — it is a one-time step per docker host. **The docker host is
-`localhost`** for now; there is no separate remote host yet, so the login above
-runs on this machine. Re-run it if the token is ever rotated or revoked: a
-`gho_`/`ghp_` token stored in docker's config does not follow `gh auth login`.
+reboots — a one-time step per docker host. Re-run it if the token is rotated or
+revoked: a `gho_`/`ghp_` token stored in docker's config does not follow
+`gh auth login`.
+
+Once all three packages are public, this section stops applying: `docker pull`
+works anonymously and the login can be skipped entirely.
 
 ## heorth-mcp
 
