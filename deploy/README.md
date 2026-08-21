@@ -1,12 +1,13 @@
 # Household stack
 
-Two independent Compose files over one shared Postgres 18 cluster.
+Three independent Compose files over a Postgres 18 cluster.
 Design rationale: [`../docs/plans/household-stack-compose.md`](../docs/plans/household-stack-compose.md).
 
 | File | Use | Services from |
 |---|---|---|
 | `compose.dev.yml` | local work across services | `build:` the sibling checkouts |
 | `compose.prod.yml` | the household server | pinned `ghcr.io` images |
+| `compose.demo.yml` | a throwaway demo household | `build:` the sibling checkouts |
 
 They are **deliberately separate**. Do not merge them, add profiles, or use
 `extends` — the production file must be readable end to end without resolving
@@ -25,6 +26,84 @@ conditionals.
 HAProxy already fronts the household and terminates TLS
 (`heorth.home.example.com`); the stack publishes plain ports on the docker
 host and does not run its own proxy.
+
+Ports above are the dev/prod stacks. The demo stack shifts every one of them —
+see [Demo household](#demo-household).
+
+## Demo household
+
+A self-contained, throwaway household for demonstrating or exploring the stack,
+prefilled with sample data. One command, no configuration:
+
+```bash
+deploy/demo-up.sh            # generate secrets, build, bring up, seed
+deploy/demo-up.sh --reseed   # re-run the seed only
+deploy/demo-up.sh --fresh    # destroy the demo's data, then rebuild and reseed
+```
+
+| Service | Host port |
+|---|---|
+| `heorth` | 4100 |
+| `kithledger` | 4102 |
+| `heorth-mcp` | 4103 |
+| `db` | 55433 |
+
+**Every port is shifted and the cluster is its own volume**
+(`wyrhta-demo_db_data`), so the demo runs alongside the dev stack, the per-repo
+stacks, and any unrelated Postgres on 5432. It is the one stack here without
+the "cannot run at the same time" gotcha below.
+
+Two properties are deliberate and worth keeping:
+
+- **It never writes into `heorth_dev` / `kithledger_dev`.** Those are the real
+  dev databases on the shared `wyrhta-dev_db_data` volume; a demo seed landing
+  there would be indistinguishable from real dev data. The demo uses the
+  primary database names *inside its own isolated cluster*.
+- **It reaches no external system.** The six `M365_*` vars and the KithLedger
+  reminders-feed pair are pinned blank in `compose.demo.yml` (not merely left
+  unset in the env file), so no demo can touch a real tenant, mailbox, or feed.
+  The satellite signing key is generated per demo.
+
+`demo-up.sh` writes `deploy/.env.demo` with fresh throwaway secrets on first
+run and prints the logins at the end. That file is git-ignored like every other
+`deploy/.env*` — delete it and re-run to rotate everything. There is no
+`db-backup` service: the data is generated and meant to be thrown away.
+
+Tear down, including the data:
+
+```bash
+docker compose -f deploy/compose.demo.yml --env-file deploy/.env.demo down -v
+```
+
+### The sample data
+
+`seed-demo.mjs` fills the demo through the **public REST APIs** — there is no
+SQL fixture and no privileged back door, so the seed exercises the same
+validation and authorisation a client would. It is **idempotent**: every create
+is guarded by a lookup on a natural key, so re-running adds nothing and repairs
+anything missing. It never deletes.
+
+The Ashcombe household: 4 members (2 adults, 2 children), 8 calendar events
+(three recurring), 5 recipes, a week's meal plan, a generated shopping list, 9
+inventory items (one decommissioned), and a finance set of 5 accounts, 8
+envelopes, 15 transactions, and 8 recurring bills — two of them linked to
+inventory items. In KithLedger: 9 people, 5 relationships, 10 interactions, and
+7 reminders.
+
+Two things the seed has to get right, both of which cost a debugging round:
+
+- **Content is written as a MEMBER, not as the admin.** Heorth's admin is the
+  *maintenance* admin: it is quarantined from owning household data (calendar,
+  meals, library, tasks and finance all call `assertNotMaintenanceAdmin` on the
+  acting member) and boot strips any it accumulated. The seed logs in twice —
+  admin for the things only an admin can do, then a member for all content.
+- **`recurrence` is an ISO 8601 duration (`P1W`), not an RRULE.** The create
+  schema accepts any string, but an unparseable one makes the range view
+  (`GET /events?from&to`) throw on *every* subsequent request. One bad row
+  poisons the calendar until it is deleted.
+
+**Only ever point `seed-demo.mjs` at the demo stack.** Nothing in it
+distinguishes a demo Heorth from a real one but the URL it is given.
 
 ## First bring-up
 

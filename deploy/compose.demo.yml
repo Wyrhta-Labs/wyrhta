@@ -1,0 +1,166 @@
+# Wyrhta Labs household stack — DEMO.
+#
+# A throwaway, fully isolated household for demonstrating and exploring the
+# stack. Like compose.dev.yml it builds every service from its sibling
+# checkout, so Heorth/, KithLedger/ and heorth-mcp/ must be cloned beside
+# this repo.
+#
+#   deploy/demo-up.sh          # generate secrets, bring up, seed sample data
+#
+# The three Compose files are deliberately independent — do not merge them,
+# add profiles, or use `extends` (see deploy/README.md).
+#
+# WHY A THIRD FILE RATHER THAN REUSING compose.dev.yml:
+#
+#   1. compose.dev.yml writes into heorth_dev / kithledger_dev — the real dev
+#      databases, on the shared wyrhta-dev_db_data volume. A demo seed must
+#      never land there. This stack owns its own volume and is destroyed with
+#      `docker compose -f deploy/compose.demo.yml down -v`.
+#   2. Every published port is shifted, so the demo can run alongside the dev
+#      stack, the per-repo stacks, and any unrelated Postgres on 5432.
+#
+# NOTHING HERE REACHES A REAL EXTERNAL SYSTEM. The six M365_* vars are blank
+# (all-or-nothing: all blank = integration disabled), the KITH_* reminders-feed
+# pair is blank, and the satellite signing key is generated fresh per demo.
+
+name: wyrhta-demo
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set it in deploy/.env.demo}
+      HEORTH_DB_PASSWORD: ${HEORTH_DB_PASSWORD:?set it in deploy/.env.demo}
+      KITH_DB_PASSWORD: ${KITH_DB_PASSWORD:?set it in deploy/.env.demo}
+      # No *_test / *_dev databases: nothing here is a test or dev target, and
+      # omitting them keeps a stray `npm test` from having anything to find.
+      CREATE_TEST_DATABASES: "false"
+    volumes:
+      # Postgres 18 sets PGDATA to /var/lib/postgresql/<major>/docker and
+      # declares its volume one level up. Mounting /var/lib/postgresql/data
+      # makes the container start against an anonymous volume and SILENTLY
+      # STOP PERSISTING DATA.
+      - db_data:/var/lib/postgresql
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    # 55433, not 5432: the demo must not fight the dev stack or any unrelated
+    # cluster for the default port.
+    ports:
+      - "55433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  kithledger:
+    build: ../KithLedger
+    environment:
+      # The demo uses the PRIMARY database inside its own throwaway cluster.
+      # That is safe here precisely because the cluster is isolated: it is on
+      # its own volume and published on 55433, so no test suite pointing at
+      # localhost:5432 can reach it.
+      DATABASE_URL: postgres://kithledger:${KITH_DB_PASSWORD:?}@db:5432/kithledger
+      JWT_SECRET: ${KITH_JWT_SECRET:?set it in deploy/.env.demo}
+      ADMIN_PASSWORD: ${KITH_ADMIN_PASSWORD:?set it in deploy/.env.demo}
+      API_PORT: 3000
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      CORS_ORIGIN: "*"
+      # Satellite verification (ADR 0009). KithLedger only ever VERIFIES; it
+      # holds no signing key and cannot mint a member token.
+      HEORTH_JWKS_URL: ${HEORTH_JWKS_URL:-http://heorth:3000/.well-known/jwks.json}
+      SATELLITE_AUDIENCE: ${SATELLITE_AUDIENCE:-kithledger}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4102:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  heorth:
+    build: ../Heorth
+    environment:
+      # Primary database in an isolated cluster — see the kithledger note above.
+      DATABASE_URL: postgres://heorth:${HEORTH_DB_PASSWORD:?}@db:5432/heorth
+      JWT_SECRET: ${HEORTH_JWT_SECRET:?set it in deploy/.env.demo}
+      ADMIN_PASSWORD: ${HEORTH_ADMIN_PASSWORD:?set it in deploy/.env.demo}
+      ADMIN_EMAIL: ${HEORTH_ADMIN_EMAIL:-admin@demo.invalid}
+      HOUSEHOLD_NAME: ${HOUSEHOLD_NAME:-Ashcombe Demo Household}
+      API_PORT: 3000
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      CORS_ORIGIN: "*"
+      # ALL SIX BLANK = M365 integration disabled. Keep it that way for the
+      # demo: a demo must not touch a real tenant or mailbox. Partial presence
+      # is a startup error, so do not fill just one.
+      M365_TENANT_ID: ""
+      M365_CLIENT_ID: ""
+      M365_CLIENT_SECRET: ""
+      M365_REDIRECT_URI: ""
+      M365_FAMILY_MAILBOX: ""
+      M365_SHARED_TODO_LIST: ""
+      # KithLedger reminders feed into Heorth: BOTH blank = feed disabled.
+      # Enabling it needs a household-kinded kl_ key minted in the demo
+      # KithLedger first, which is a chicken-and-egg the demo does not need.
+      KITH_BASE_URL: ""
+      KITH_API_KEY: ""
+      KITH_API_KEY_KIND: ""
+      # Satellite identity (ADR 0009). Generated fresh per demo by demo-up.sh;
+      # DISTINCT from JWT_SECRET by design.
+      SATELLITE_SIGNING_KEY: ${SATELLITE_SIGNING_KEY:?set it in deploy/.env.demo}
+      SATELLITE_SIGNING_KID: ${SATELLITE_SIGNING_KID:-heorth-demo}
+      SATELLITE_SIGNING_ALG: ${SATELLITE_SIGNING_ALG:-EdDSA}
+      SATELLITE_AUDIENCES: ${SATELLITE_AUDIENCES:-kithledger}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4100:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  heorth-mcp:
+    build: ../heorth-mcp
+    environment:
+      # Origin only — the client appends /api/v1 itself.
+      HEORTH_BASE_URL: http://heorth:3000
+      # kith.* tools: no service key. heorth-mcp exchanges the caller's own
+      # he_ key at Heorth for a short-lived member token (ADR 0009).
+      KITH_BASE_URL: http://kithledger:3000
+      KITH_AUDIENCE: ${SATELLITE_AUDIENCE:-kithledger}
+      PORT: 3200
+      UPSTREAM_TIMEOUT_MS: ${UPSTREAM_TIMEOUT_MS:-10000}
+    depends_on:
+      heorth:
+        condition: service_healthy
+      kithledger:
+        condition: service_healthy
+    ports:
+      - "4103:3200"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3200/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+# No db-backup service. The demo's data is generated by seed-demo.mjs and is
+# meant to be thrown away and reseeded, so backing it up would be noise.
+
+volumes:
+  db_data:
