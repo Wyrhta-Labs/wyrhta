@@ -15,6 +15,7 @@ Cross-cutting decisions that affect more than one Wyrhta Labs service.
 - [0009 — Satellite token exchange: how member identity reaches a satellite](0009-satellite-token-exchange.md)
 - [0010 — `@wyrhta/core` stays a git dependency that builds on install](0010-core-stays-a-git-dependency-that-builds-on-install.md)
 - [0011 — `@wyrhta/core` is published to npm](0011-core-is-published-to-npm.md)
+- [0012 — A separate Compose file for a throwaway demo household](0012-a-separate-compose-file-for-a-throwaway-demo-household.md)
 
 ## Format
 

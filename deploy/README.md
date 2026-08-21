@@ -33,7 +33,9 @@ see [Demo household](#demo-household).
 ## Demo household
 
 A self-contained, throwaway household for demonstrating or exploring the stack,
-prefilled with sample data. One command, no configuration:
+prefilled with sample data. Rationale:
+[ADR 0012](../docs/decisions/0012-a-separate-compose-file-for-a-throwaway-demo-household.md).
+One command, no configuration:
 
 ```bash
 deploy/demo-up.sh            # generate secrets, build, bring up, seed
