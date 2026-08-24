@@ -1,14 +1,15 @@
 # Handoff — `@wyrhta/core` code review, remaining fixes
 
 A full code review of `wyrhta-core` at **v0.4.0** was done on **2026-08-23**.
-Findings 1–8 are fixed and committed (see *Already done*); the only remaining
-item is **finding 9**, which is deliberately deferred.
-Line numbers refer to the tree at commit `0dcf674` (the last of the
-fix commits above).
+**Every finding (1–10) is now fixed and committed** — see *Already done*.
+Finding 9, which this document recommended deferring, was implemented on
+**2026-08-24** and shipped in **0.5.0** together with two env helpers lifted
+out of the consumers; both consumers now build on it. Line numbers below refer
+to the tree at commit `0dcf674`, before the 0.4.2/0.5.0 work.
 
-Nothing in this list is a production incident — these are review findings on a
-self-hosted foundation library, ranked so the next session can pick them up in
-order.
+Nothing in this list was a production incident — these are review findings on a
+self-hosted foundation library, ranked so the next session could pick them up
+in order.
 
 ## How to work these
 
@@ -37,6 +38,7 @@ order.
 | 5 | `seedHousehold` was not race-safe — two concurrent boots both inserted and the loser crashed the boot on a `23505` | `fd9b1c6` — the insert catches the unique violation via the shared `isUniqueViolation` helper and re-selects the winner's row |
 | 6 | `authenticate` leaked user existence via timing (unknown email skipped the argon2 work) | `a070aac` — the not-found path verifies against a lazily-built throwaway hash (`verifyDummyPassword` in `./identity`); return shape unchanged |
 | 7 | HSTS localhost check was a substring match (`notlocalhost.example.com` lost HSTS) | `c070ac6` — host is port-stripped (bracketed IPv6 included) and compared exactly: `localhost`, `*.localhost`, `127.0.0.1`, `::1` |
+| 9 | `baseEnvSchema` forced a 32-char `JWT_SECRET` even on a verify-only deployment | `d7b1efb` — the base field is `.optional()`; both consumers re-declare it as required in their `extend()` shape. Shipped in **0.5.0** (minor — the inferred type changes) |
 | 8 | `errorHandler` read `process.env.NODE_ENV`, breaking the env-agnostic boundary | `b91841f` — design call resolved as handoff option 1: additive `createErrorHandler({ validationDetails })` factory; the `errorHandler` const keeps the NODE_ENV default; README module map states the deviation |
 
 ## 5. `seedHousehold` is not race-safe — (mechanical)
@@ -133,7 +135,7 @@ Options, in order of preference:
 Either is defensible; 1 is more in the spirit of the library, 2 is less code.
 Whichever is chosen, the module-map line in `README.md` should say so.
 
-## 9. `baseEnvSchema` forces a 32-char `JWT_SECRET` — (design call, deferrable)
+## 9. `baseEnvSchema` forces a 32-char `JWT_SECRET` — DONE (was: design call, deferrable)
 
 `src/config/env.ts:5-7`. The base schema unconditionally requires
 `JWT_SECRET` ≥ 32 chars — even for a deployment that only *verifies*
@@ -150,8 +152,29 @@ If implemented: make the base field
 required in their `extra` shape (`baseEnvSchema.extend` replaces keys, so this
 composes). Caveat: the inferred type of `JWT_SECRET` changes from `string` to
 `string | undefined`, which may break consumer typechecks — a **minor** bump,
-not a patch. Recommendation: **defer** until the ADR 0009 work actually needs
-it; until then it is speculative and core's own rules say no.
+not a patch. Recommendation at review time: **defer** until the ADR 0009 work
+actually needs it.
+
+**Resolution (2026-08-24): implemented instead of deferred.** The trigger was
+the standing instruction that a function living in more than one project
+belongs in core where feasible — both consumers had grown the same two env
+helpers (`emptyToUndefined`, the safeParse/print/exit startup guard), so core's
+`./config` was going to be touched anyway and finding 9 rode along in the same
+minor:
+
+- `d7b1efb` — `JWT_SECRET` is `.optional()` in `baseEnvSchema`.
+- `d92c788` — `emptyToUndefined` and `parseEnvOrExit` added to `./config`.
+  `parseEnvOrExit` takes any `z.ZodType`, not just an object shape, so a
+  schema carrying a `superRefine` group check (KithLedger's satellite group)
+  still works.
+- `7357748` — release 0.5.0.
+- Heorth `191dd48`, KithLedger `7a7c70c` — both build their env schema on
+  `baseEnvSchema.extend()`, drop the locally duplicated helpers, and
+  re-declare `JWT_SECRET` as required (both sign HS256). Verified: typecheck
+  and build clean in both, Heorth 382/382 and KithLedger 235/235 tests
+  passing against a real Postgres `_test` database.
+
+A verifier-only deployment (ADR 0009) can now hold no `JWT_SECRET` at all.
 
 ## Release notes
 
@@ -169,7 +192,11 @@ may break, a patch bump is safe.
 - **0.4.2 (patch)** shipped **2026-08-24** (tag `v0.4.2`) carrying 5, 6, 7, 8.
   Nothing in that set is breaking; consumers on `^0.4.0` pick it up on a
   lockfile refresh.
-- **9**, if ever implemented, is a **minor** (inferred-type change).
+- **0.5.0 (minor)** shipped **2026-08-24** (tag `v0.5.0`) carrying 9 plus the
+  two shared env helpers. Minor because the inferred type of `JWT_SECRET`
+  changes; both consumers moved their pin from `^0.4.0` to `^0.5.0` the same
+  day. Remaining cross-project duplication is catalogued in
+  `docs/plans/core-extraction-candidates.md`.
 - The publish pipeline validates `v*` tag == `package.json` version and runs
   typecheck + tests + build first, so the usual flow is: fix commits →
   version bump + CHANGELOG → tag `vX.Y.Z` → CI publishes.
