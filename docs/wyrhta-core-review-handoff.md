@@ -2,8 +2,8 @@
 
 A full code review of `wyrhta-core` at **v0.4.0** was done on **2026-08-23**.
 Findings 1, 2 and 4 were fixed immediately and are already committed (see
-*Already done*). This document is the work order for the rest: **finding 3 and
-5–10**. Line numbers refer to the tree at commit `0dcf674` (the last of the
+*Already done*). This document is the work order for the rest: **finding 5–9**.
+Line numbers refer to the tree at commit `0dcf674` (the last of the
 fix commits above).
 
 Nothing in this list is a production incident — these are review findings on a
@@ -31,43 +31,8 @@ order.
 | 1 | `CORE_VERSION` was `0.3.0` in a `0.4.0` package; smoke test only checked non-empty | `38df9a9` — constant bumped, smoke test now compares against `package.json` |
 | 2 | `coreMigrationsFolder()` pointed at a folder missing from the published tarball (`tsc` doesn't copy `.sql`) | `be1105e` — `scripts/copy-migrations.mjs` runs after `tsc` in `build`; dist verified to contain the SQL + meta |
 | 4 | RSA CRT members (`p`/`q`/`dp`/`dq`/`qi`) could survive `loadPublicKey` and leak into a JWKS document | `0dcf674` — `assertShape` rejects them in public material, `toJwks` strips all six private members |
-
-## 3. `rateLimit` trusts the client-supplied `X-Forwarded-For` — (security, design call)
-
-`src/http/middleware/rate-limit.ts:8-14`. Three distinct weaknesses in one
-middleware:
-
-1. **Bypass.** `getIp` takes the *first* `X-Forwarded-For` entry, which a
-   direct client sets itself. Rotating that value per request yields a fresh
-   bucket per request — a complete bypass of the limiter, on exactly the
-   routes it is mounted to protect (KithLedger's auth route, Heorth's
-   household routes).
-2. **Shared bucket.** No `X-Forwarded-For` at all (direct connection, no
-   proxy) → every client lands in one `'unknown'` bucket, so a single client
-   can starve the whole instance.
-3. **Unbounded store.** The `Map` is never pruned: entries are only reset on
-   access, never deleted. One fresh IP per request (trivial via #1) grows
-   memory without bound — a slow DoS.
-
-Suggested shape of the fix, in three separable pieces:
-
-- **3a — prune the store (mechanical, no debate).** When `store.size` passes a
-  bound (e.g. 10 000), sweep out entries whose `resetAt` is in the past. Add a
-  test: fill past the bound with expired entries, assert memory stays flat and
-  requests still flow.
-- **3b — make the IP source injectable (design call).** Core already follows
-  the "app supplies the bridge" pattern (`resolveApiKey` in `./auth`). Add an
-  optional `resolveIp?: (c) => string` to the `rateLimit` options; keep the
-  current XFF behavior as the default for compatibility. The app knows its own
-  proxy topology; core stays transport-agnostic.
-- **3c — document the trust requirement.** The limiter is only sound behind a
-  proxy that *replaces* (not appends to) `X-Forwarded-For` — e.g. HAProxy
-  `http-request set-header X-Forwarded-For src`. This belongs in the module
-  map in `README.md` and in the compose planning doc
-  (`docs/plans/household-stack-compose.md` in this repo) so the deployment
-  actually configures it.
-
-Do 3a now; 3b + 3c together as one commit.
+| 3 | `rateLimit` trusted the client-supplied `X-Forwarded-For` (bypass, shared bucket, unbounded store) | `d6f1559` + `eed04dd` — 3a store pruning (`maxEntries`, `size` getter), 3b injectable `resolveIp`, 3c trust requirement in the README module map and in `docs/plans/household-stack-compose.md` (meta repo `07bdac9`) |
+| 10 | README install examples still said 0.3.1 | `52da60d` — both point at 0.4.1, in the same commit as the version bump |
 
 ## 5. `seedHousehold` is not race-safe — (mechanical)
 
@@ -183,35 +148,29 @@ composes). Caveat: the inferred type of `JWT_SECRET` changes from `string` to
 not a patch. Recommendation: **defer** until the ADR 0009 work actually needs
 it; until then it is speculative and core's own rules say no.
 
-## 10. README install examples still say 0.3.1 — (trivial, do with the next release)
-
-`README.md:15` shows `"@wyrhta/core": "^0.3.1"` and `README.md:29` the git-tag
-form `#v0.3.1`, both stale since 0.4.0 — which carries the breaking
-`drizzle-orm ^0.45.2` requirement that consumers must not miss when bumping.
-Point both at the version the next release actually ships, ideally in the
-same commit as the version bump so the README and the tag never disagree.
-
 ## Release notes
 
 Release discipline (README "Release discipline", CHANGELOG header): every
 change ships as a semver tag **plus a CHANGELOG entry**; pre-1.0 a minor bump
 may break, a patch bump is safe.
 
-- **0.4.1 (patch)** can carry: 3a, 5, 6, 7, 8 (docs or additive factory), 10.
-  Nothing in that set is breaking; 3a is a behavior-neutral hardening.
-- **3b/3c** (injectable IP resolver + trust documentation) are additive, but
-  they change what the limiter means — ship with a CHANGELOG entry and verify
-  the Heorth/KithLedger mount sites still make sense with the documented
-  trust model. Patch is defensible; minor if you want the documentation change
-  to be prominent.
+- **0.4.1 (patch)** shipped **2026-08-24** (tag `v0.4.1`) carrying 3a, 3b/3c,
+  and 10. Heorth and KithLedger moved to it the same day: KithLedger keys its
+  `/auth/token` limiter on the same `getIp` its audit log records
+  (`resolveIp`), Heorth is a lockfile-only move. Two release-blocker fixes
+  rode along in the tag: the core migration SQL that a machine-global
+  `*.sql` ignore kept out of git (`be87446`), and `CORE_VERSION`
+  (`2927d59`).
+- **0.4.2 (patch)** can carry: 5, 6, 7, 8 (docs or additive factory).
+  Nothing in that set is breaking.
 - **9**, if ever implemented, is a **minor** (inferred-type change).
 - The publish pipeline validates `v*` tag == `package.json` version and runs
   typecheck + tests + build first, so the usual flow is: fix commits →
-  version bump + CHANGELOG → tag `v0.4.1` → CI publishes.
+  version bump + CHANGELOG → tag `vX.Y.Z` → CI publishes.
 
-Consumer impact: Heorth and KithLedger both pin `^0.4.0`; a `0.4.1` patch
-reaches them on their next lockfile refresh with no code change. A minor
-bump requires a deliberate pin change in each consumer.
+Consumer impact: Heorth and KithLedger both pin `^0.4.0`, so a patch reaches
+them on a lockfile refresh with no code change (done for 0.4.1 on
+2026-08-24). A minor bump requires a deliberate pin change in each consumer.
 
 ## Verification baseline
 
