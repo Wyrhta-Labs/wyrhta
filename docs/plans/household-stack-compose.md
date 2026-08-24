@@ -199,6 +199,24 @@ complete or absent.
 3. **Consolidation is a dump and restore.** Existing per-repo volumes are three
    separate clusters; nothing in Compose merges them. Documented, manual, one time.
 
+## Rate-limit trust boundary
+
+Heorth and KithLedger mount `@wyrhta/core`'s `rateLimit` on their auth and
+household routes, and its default key is the first `X-Forwarded-For` entry.
+That header is set by the caller on a direct connection, so the limiter is
+only sound when HAProxy — the edge the FQDN already resolves to —
+**replaces** it with the true client address instead of appending to it. In
+each frontend that routes to the docker host:
+
+```
+http-request set-header X-Forwarded-For src
+```
+
+HAProxy's `forwardfor` default is to append, which is the unsafe case: a
+forged upstream entry survives, and a caller rotating the value gets a fresh
+budget per request — a complete bypass of exactly the routes the limiter
+exists to protect.
+
 ## Non-goals
 
 Reverse proxy and TLS. The household **already runs HAProxy** —
