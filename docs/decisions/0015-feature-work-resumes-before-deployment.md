@@ -74,10 +74,18 @@ Three things have since made it the wrong rule to hold this month.
   sequencing. §5 is the replacement, and it is weaker: a note in an ADR rather
   than a line in the strategy. Anyone reading this later should treat a *second*
   pre-deployment slice as the signal that the roadmap has stopped being a plan.
-- **Deployment gets harder, slightly.** Two more modules, four more tables and a
-  rename land before first bring-up, so the first deployment carries a migration
-  it would not otherwise have had. Mitigated by the rename's rehearsal-on-a-dump
-  procedure being written for a *live* database it will now not have to face.
+- **Deployment gets easier, not harder — and that is worth stating.** Two more
+  modules and five more tables land before first bring-up, but they land on an
+  *empty* database. The Ethel rename was specced with a page of procedure to
+  protect live household rows — read the emitted SQL, replace drop-and-create with
+  `ALTER … RENAME`, gate it behind a preservation test, rehearse on a dump. With
+  deployment moved behind it, none of that is needed and all of it is deleted
+  (ADR 0013, Amendments 2). The first deployment carries a longer migration chain
+  against a fresh cluster, which is the cheap direction.
+- **The corollary is a standing rule for everything that follows.** Any further
+  schema change that lands before Phase 3 may be a drop-and-create. The moment the
+  household database is real, that stops being true, and the deleted procedure has
+  to come back out of git history.
 - **The honesty constraint on the website tightens.** Ethel and Weorc will exist
   in the repo before the household runs on them. Anything the site says about
   them stays in the planned column until Phase 3 is done, per the shipped/planned

@@ -76,6 +76,8 @@ with no alias window.**
    One asset table stays the spine, so TCO and both feoh links keep working
    untouched. No `mot_due` column: recurring inspections are Maintenance Plans
    (Phase 4 slice C), and a column here would compete with them.
+   **Amended 2026-08-24 — see Amendments (1):** the vehicle row *does* carry
+   `serviceIntervalMonths`.
 7. **Ethel is durables only.** Consumable stock — pantry and supplies,
    quantities, restock, feeding the shopping list — is the *other* meaning of
    "inventory" and is **not** part of this domain. If it is built, it is its own
@@ -92,6 +94,9 @@ The design detail for the first two slices lives in
   `heorth-mcp` is a pure REST client that owns no data, a version skew between
   the two containers is not degraded service — the tools are simply broken until
   both are rebuilt. They ship together.
+- **Superseded 2026-08-24 — see Amendments (2).** ~~The riskiest line in the
+  whole change is `ALTER TABLE … RENAME TO`.~~ The three consequences below
+  describe a data migration that no longer happens.
 - **The riskiest line in the whole change is `ALTER TABLE … RENAME TO`.**
   Postgres preserves data, FKs and indexes across a rename, but `db:generate`
   may emit a drop-and-create, and Heorth forbids hand-editing migration
@@ -120,3 +125,30 @@ The design detail for the first two slices lives in
   assets and places, and service contacts (slice D) hang off plans — so the
   KithLedger integration lands on a domain that already has somewhere to put it,
   rather than on a flat item list.
+
+## Amendments
+
+**1 — `serviceIntervalMonths` on vehicles (2026-08-24).** Decision §6 said no
+service intervals on the vehicle row, on the grounds that a column there would
+compete with Maintenance Plans. Half of that reasoning survived ADR 0014 and half
+did not: the *routine* is Weorc's and must not be duplicated here, but the
+manufacturer's **stated** interval is a fact of the thing, which ADR 0014 §4 puts
+in Ethel. `ethel_vehicles` and `ethel_facilities` therefore both carry
+`serviceIntervalMonths integer NULL CHECK (> 0)`, as documentation only — Weorc
+never reads it as a trigger, only as a default the routine form offers. The
+`mot_due` refusal stands: a *due date* is a projection, and that is Weorc's.
+
+**2 — No data migration, no place backfill (2026-08-24).** Three consequences
+above are struck: the `ALTER TABLE … RENAME` risk, "assets arrive pre-placed with
+wrong kinds on day one", and "`Gone` stops being expressible". All three assumed a
+live database. Nothing is deployed — ADR 0015 defers Phase 3 behind this work — so
+there are no rows to carry across. The rename may be emitted as drop-and-create,
+the preservation test and the rehearsal on a dump are dropped, and the place
+backfill is dropped with them: the tree is built by hand or through the MCP place
+tools, and `Driveway`, `Gone` and the mislabelling they would have caused never
+exist. `ON DELETE SET NULL` on `assets.placeId` is unaffected and still stands on
+its own reasoning.
+
+**This amendment is only true while no database holds rows anyone wants.** The
+deleted procedure is in this repo's git history, and the spec's Part A carries the
+count check that must pass before the migration is generated.

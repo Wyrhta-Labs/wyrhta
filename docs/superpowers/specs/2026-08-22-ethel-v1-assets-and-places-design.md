@@ -44,11 +44,11 @@ written — but the slice-C spec belongs to Weorc and must not add
 descendant-aware asset filter; `ethel_facilities` + `ethel_facility_places` and
 their REST surface; the web page rename plus place management, vehicle details
 and facility details; the `heorth-mcp` tool rename plus place, vehicle-detail and
-facility-detail tools; the data migration; the demo seed.
+facility-detail tools; the schema change; the demo seed.
 
 **Out, deliberately:** Maintenance Plans and every other recurring definition —
-Weorc owns those (ADR 0014), and a facility's `serviceIntervalMonths` is a stated
-fact, not a schedule; service contacts; photos; documents
+Weorc owns those (ADR 0014), and `serviceIntervalMonths` on a vehicle or a
+facility is a stated fact, not a schedule; service contacts; photos; documents
 (the Office module is deferred — documents stay in Library); barcodes; loan
 tracking; quantities; Tier-3 costs (energy, allocated shares — unchanged from
 the 2026-08-16 cut); odometer history; **consumables and pantry stock**, which
@@ -124,45 +124,36 @@ to `ethel.*` in this repo.
 `deploy/seed-demo.mjs`, `deploy/README.md`, ADR 0008's tool list, and this
 spec's own status when it lands.
 
-### Migration
+### Schema change — no data migration
 
-One migration, generated with `npm run db:generate -- --name ethel-absorbs-inventory`.
+**Revised 2026-08-24: there is no live data.** Nothing is deployed (ADR 0015
+defers Phase 3), so no database holds household rows this change has to carry
+across. That removes the largest part of this spec's original risk, and with it a
+page of procedure.
 
-```sql
-ALTER TABLE inventory_items RENAME TO ethel_assets;
-ALTER TABLE ethel_assets RENAME COLUMN location TO location_note;
-ALTER TABLE feoh_item_costs RENAME COLUMN item_id TO asset_id;
-ALTER TABLE recurring_bills RENAME COLUMN inventory_item_id TO ethel_asset_id;
--- constraint hygiene: inventory_reason_check, inventory_decommission_pair_check
-ALTER TABLE ethel_assets RENAME CONSTRAINT inventory_reason_check TO ethel_assets_reason_check;
-ALTER TABLE ethel_assets RENAME CONSTRAINT inventory_decommission_pair_check TO ethel_assets_decommission_pair_check;
-```
+One drizzle migration, generated with
+`npm run db:generate -- --name ethel-absorbs-inventory`, then the new tables of
+Parts B and C. **Whatever drizzle-kit emits is acceptable** — including
+`DROP TABLE` + `CREATE TABLE` where a rename was meant. There is nothing to
+preserve, so the emitted SQL is not hand-replaced with `ALTER … RENAME`, the
+snapshot is not re-synced by hand, and the rule against hand-editing snapshots is
+never approached.
 
-Then the new tables (Parts B and C), then the place backfill.
+Dropped with it, all of which existed only to protect rows that do not exist:
 
-**This is the riskiest part of the change.** `db:generate` may emit
-`DROP TABLE` + `CREATE TABLE` for what is semantically a rename, and this repo
-forbids hand-editing snapshots. Procedure:
+- the preservation test across the migration (row counts, `location` values,
+  `feoh` links still resolving);
+- the rehearsal on a dump of the household database;
+- the rollback plan — a fresh database is the rollback;
+- the place backfill (see Part B).
 
-1. Generate, then **read the emitted SQL** before running anything.
-2. If it emits drop-and-create, replace the migration body with the `ALTER`
-   statements above and re-sync the snapshot through drizzle-kit rather than by
-   hand.
-3. Gate it behind a test that asserts, across the migration: `ethel_assets` row
-   count equals the pre-migration `inventory_items` count; every
-   `location_note` equals the old `location`; every `feoh_item_costs` and
-   `recurring_bills` link still resolves to its asset. **This assertion belongs
-   to the rename step, before the place backfill runs** — the backfill later
-   moves those strings into `places.name` and clears `location_note`, so a test
-   spanning both steps would contradict itself. The backfill has its own
-   assertion: every string that was in `location` is now a place name, and every
-   asset that had one has a `placeId`.
-4. Rehearse on a **dump of the household database** before running it on the
-   household database.
-
-**Rollback** is the inverse renames plus dropping the four new tables; it loses
-only the place tree and the facility details, since no asset data is destroyed at
-any point.
+**The one thing to check before generating.** All of this rests on "no live
+data". Verify it rather than assume it: a dev or demo database holding rows is
+*disposable* and gets recreated from the seed, but a database holding data
+someone wants makes this decision wrong, and the deleted procedure above is what
+to restore from git history. Count `inventory_items` in every database reachable
+from `deploy/` first, and treat a non-zero count outside the dev and demo stacks
+as a stop.
 
 ---
 
@@ -251,9 +242,12 @@ All under `requireAuth`; writes under `requireRole('admin','adult')`.
 
 **Vehicle detail:**
 
-- `PUT /assets/:id/vehicle` — upsert (201 on create, 200 on update).
-  `404` unknown asset; `409 VEHICLE_REGISTRATION_TAKEN` /
-  `409 VEHICLE_VIN_TAKEN`.
+- `PUT /assets/:id/vehicle` — upsert (201 on create, 200 on update). Body:
+  `registration?`, `vin?`, `firstRegisteredOn?`, `odometer?`, `odometerReadAt?`,
+  `serviceIntervalMonths?`. `404` unknown asset;
+  `409 VEHICLE_REGISTRATION_TAKEN` / `409 VEHICLE_VIN_TAKEN`;
+  `409 ASSET_DETAIL_CONFLICT` when the asset already carries a facility detail
+  (the mirror of the Part C rule).
 - `DELETE /assets/:id/vehicle` — drop the detail row, keep the asset.
 
 A vehicle detail row is **not** implied by `category='vehicle'`: category is
@@ -270,8 +264,18 @@ free text and always was, so presence of the detail row is the only signal.
 | `firstRegisteredOn` | date NULL | |
 | `odometer` | integer NULL | `CHECK (odometer >= 0)` |
 | `odometerReadAt` | date NULL | `CHECK ((odometer IS NULL) = (odometer_read_at IS NULL))` — a mileage with no reading date is not a fact, in the house style of the decommission pair check |
+| `serviceIntervalMonths` | integer NULL | `CHECK (service_interval_months > 0)` — **added 2026-08-24**, reversing ADR 0013 §6 |
 
-No `mot_due`, no service intervals, no odometer history (ADR 0013 §6).
+No `mot_due`, no odometer history (ADR 0013 §6).
+
+**`serviceIntervalMonths` is on both detail tables, and means the same thing in
+each:** the interval the manufacturer states, as documentation. A car's service
+interval is as much a fact of the car as a boiler's is of the boiler, and the
+asymmetry the first cut left behind would have read as arbitrary on the vehicle
+screen. The rule from Part C carries over unchanged — **Weorc never reads it as a
+trigger**, only as a default the routine form offers, so exactly one interval
+stays authoritative. ADR 0013 §6's "no service intervals" is amended, not
+ignored: it was cut for scope, and the field costs one column and one CHECK.
 
 ### Web
 
@@ -286,7 +290,7 @@ No `mot_due`, no service intervals, no odometer history (ADR 0013 §6).
   `PLACE_HAS_CHILDREN` as a plain-language message and warns that assets will
   be unassigned.
 - **Vehicle details**: an "Add vehicle details" action on the asset detail,
-  editing the five fields; not tied to `category`.
+  editing the six fields; not tied to `category`.
 - i18n: the whole `inventory.*` namespace moves to `ethel.*` in **both**
   locales, plus new keys for places, kinds, vehicle fields and the new errors.
   `catalog-parity.test.ts` enforces en/de parity, so both move together.
@@ -307,23 +311,17 @@ Renamed asset tools as in Part A, plus:
 These are tools in `heorth-mcp` calling Heorth's REST API. **Heorth gains no
 in-process MCP tool** — its dependency tree has no MCP SDK and must not.
 
-### The place backfill
+### No place backfill
 
-Runs after the new tables exist:
+The original spec backfilled each distinct `location` string into a place and
+pointed its assets at it. **Dropped 2026-08-24: there are no rows to backfill**
+(see Part A). `locationNote` starts empty on every asset, the place tree is built
+by hand or through the MCP place tools, and the demo seed writes its tree
+directly.
 
-1. For each distinct non-null `location_note`, create a place with that name and
-   `kind='room'`, `parentId` NULL.
-2. Set each asset's `placeId` to the place matching its `location_note`.
-3. Clear `location_note` where it was consumed, so the string is not duplicated
-   in two fields. The value survives as `places.name` — nothing is lost.
-
-Consequences accepted in ADR 0013: `Driveway` and `Gone` arrive as rooms and get
-corrected by hand. Deleting the `Gone` place unassigns the decommissioned TV,
-which is the right outcome — the decommission trio already records that it left.
-
-The backfill must be **idempotent** (guarded by a lookup on place name), so a
-re-run after a partial failure repairs rather than duplicates — the same rule the
-demo seed follows.
+Two consequences ADR 0013 accepted therefore never happen: `Driveway` and `Gone`
+do not arrive as rooms needing correction by hand, and no decommissioned asset is
+unassigned by deleting a place the backfill invented.
 
 ### Demo seed
 
@@ -337,7 +335,8 @@ Outside (outdoor)
 ```
 
 The nine existing assets are placed into it; the Ford Focus gets vehicle details
-(registration, VIN, first registered, odometer + reading date). The seed keeps
+(registration, VIN, first registered, odometer + reading date, and a
+`serviceIntervalMonths`, so that field is exercised on both detail tables). The seed keeps
 writing content **as a member, never the admin**, and keeps its natural-key
 idempotency.
 
@@ -447,10 +446,10 @@ maintenance-admin quarantine (that guard is a finance-mutation concern).
 
 ### Migration
 
-Purely **additive**: two new tables, no column changes, **no backfill** — nothing
-in today's rows identifies a facility, and guessing from `category` free text
-would manufacture data. They ride the same migration chain as Part B's new
-tables. All the migration risk stays in Part A's rename.
+Two new tables in the same generated migration as Part B's, and **no backfill** —
+there are no rows at all (Part A), and even if there were, nothing in them
+identifies a facility and guessing from `category` free text would manufacture
+data.
 
 ### Demo seed
 
@@ -467,8 +466,6 @@ idempotent on its natural key like the rest of the seed.
 
 **Heorth, backend:**
 
-- Migration: row counts preserved, `location` → `location_note` values
-  preserved, every feoh link still resolves (Part A, step 3).
 - Places: create/list/patch/delete; `PLACE_CYCLE` on direct and indirect cycles;
   `PLACE_TOO_DEEP` on both a deep create and a subtree move that would exceed
   the cap; `PLACE_NAME_TAKEN` for siblings *and* for two roots (the
@@ -478,8 +475,8 @@ idempotent on its natural key like the rest of the seed.
   `includeDescendants` without `placeId` rejected; the `limit` cap boundary and
   `limit`/`offset` paging (already landed 2026-08-21, carried to the new path).
 - Vehicles: upsert 201 then 200; unique registration and VIN; the odometer
-  pairing CHECK; `ON DELETE CASCADE` removing the detail row with its asset;
-  `GET /assets/:id` inlining the detail.
+  pairing CHECK; the `serviceIntervalMonths > 0` CHECK; `ON DELETE CASCADE`
+  removing the detail row with its asset; `GET /assets/:id` inlining the detail.
 - Facilities: upsert 201 then 200; the `kind` CHECK and the
   `serviceIntervalMonths > 0` CHECK; `ON DELETE CASCADE` removing the detail row
   with its asset; deleting a served place removing the link row but **not** the
@@ -504,11 +501,13 @@ tools against a stubbed REST layer.
 **End to end:** the demo stack, from empty database to seeded household, is the
 acceptance check — it is the only configuration that exercises every service
 together, and it has already caught one bug this class of change can produce.
+With no live data and no preservation tests, it now carries **more** of the
+verification weight than it did, not less (ADR 0015 §4).
 
 ## Rollout
 
-1. **Heorth** — rename, migration, new tables and endpoints (places, vehicles,
-   facilities), web, tests. Minor bump (pre-1.0: minor may break).
+1. **Heorth** — rename, schema change, new tables and endpoints (places,
+   vehicles, facilities), web, tests. Minor bump (pre-1.0: minor may break).
 2. **heorth-mcp** — tool rename and the new tools. Rebuilt and deployed
    **together with Heorth**; a skew leaves the tools broken, not degraded.
 3. **This repo** — ADRs 0013 and 0014 accepted, ADR 0015 (feature work before
@@ -524,9 +523,12 @@ Each repo is its own commit. Nothing is staged across repos.
 
 ## Open risks
 
-- **The generated rename migration** (Part A) is the one step that can lose
-  data. Mitigated by reading the SQL, the preservation test, and a rehearsal on
-  a dump — not by trusting drizzle-kit.
+- **"No live data" is an assumption, and the simplified Part A rests entirely on
+  it.** If a database anywhere holds rows someone wants, a drop-and-create
+  migration destroys them silently and there is no rollback, because the rollback
+  plan was deleted with the rest of the procedure. The count check in Part A is
+  the only guard, and it is a human step. Restoring the deleted procedure from
+  git history is the fix if the assumption proves false.
 - **Renamed MCP tools break saved prompts.** Accepted in ADR 0013 §2; worth an
   entry in Heorth's changelog rather than only in an ADR.
 - **The depth cap is a guess.** Six levels covers building→floor→room→storage
@@ -535,13 +537,14 @@ Each repo is its own commit. Nothing is staged across repos.
 - **Place kinds are unenforced by design**, so nothing stops a `building` inside
   a `storage`. If that turns out to matter, the fix is a lint-style warning in
   the UI, not a CHECK constraint.
-- **Only facilities get `serviceIntervalMonths`, and vehicles deliberately do
-  not** (ADR 0013 §6 cut service intervals from the vehicle row). A car has a
-  service interval too, so the asymmetry is real and will look arbitrary on the
-  vehicle detail screen. Accepted for now: the field earns its place on a
-  facility because a boiler's interval is printed in its manual and drives the
-  household's upkeep, and moving it up to the asset later is an additive
-  migration, not a redesign.
+- **`serviceIntervalMonths` is now duplicated across two detail tables.** Both
+  columns are identical in type, CHECK and meaning, which is the usual sign a
+  field belongs one level up — on `ethel_assets`, where one column would also
+  answer "what needs servicing?" in a single query rather than a union of two.
+  Kept on the detail rows deliberately: an interval is only meaningful for a thing
+  that *has* a service regime, and hanging it on every asset invites it onto the
+  sofa. A third detail table wanting it is the signal to promote it — an additive
+  column plus two copies, not a redesign.
 - **The stated interval and the Weorc schedule can drift.** The spec forbids
   Weorc from reading the field as a trigger and offers it only as a form default,
   which keeps one interval authoritative — but nothing detects that the routine
