@@ -16,6 +16,8 @@ Cross-cutting decisions that affect more than one Wyrhta Labs service.
 - [0010 — `@wyrhta/core` stays a git dependency that builds on install](0010-core-stays-a-git-dependency-that-builds-on-install.md)
 - [0011 — `@wyrhta/core` is published to npm](0011-core-is-published-to-npm.md)
 - [0012 — A separate Compose file for a throwaway demo household](0012-a-separate-compose-file-for-a-throwaway-demo-household.md)
+- [0013 — Ethel absorbs the Inventory module](0013-ethel-absorbs-the-inventory-module.md)
+- [0014 — Weorc owns recurring household work; Ethel owns the property](0014-weorc-owns-recurring-household-work.md)
 
 ## Format
 

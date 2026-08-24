@@ -42,8 +42,10 @@ _Avoid_: user (reserve "user" for the auth-level account)
 **Ethel**:
 The physical property as a domain (OE *ēðel*, rune ᛟ — immovable wealth, the
 estate; counterpart to Feoh's movable wealth): the building, rooms, assets/
-appliances, vehicles, and their upkeep. Anchor for Maintenance Plans; service
-contacts are KithLedger people referenced from here.
+appliances, vehicles, and the upkeep *facts* that belong to a thing (manuals,
+warranty, the stated service interval). The recurring work itself is **Weorc**,
+which anchors routines here (ADR 0014); service contacts are KithLedger people
+referenced from a routine.
 _Avoid_: The Home, house profile, inventory
 
 **Office** (future):
@@ -65,13 +67,32 @@ not replace it.
 **Task**:
 An everyday to-do (owner, due date, maybe recurrence) whose System of Record is an
 external task service. Heorth mirrors Tasks; it does not own them.
-_Avoid_: chore (ambiguous), todo
+_Avoid_: todo. ("Chore" is no longer avoided — since ADR 0014 it is the plain
+gloss for **Weorc**, not a loose synonym for Task.)
+
+**Weorc**:
+The household's own recurring work as a domain (OE *weorc* — work, labour; no
+rune, unlike Feoh and Ethel): routine definitions, their completion history, and
+the projection of due work outward as Tasks. A peer of Ethel, not a feature of it
+(ADR 0014) — most routines (bins, laundry, watering) anchor to nothing at all.
+Owns exactly one projection engine for the whole household; Wyrtgeard's planting
+calendar will use the same one.
+_Avoid_: chores module (Weorc is the proper name), Maintenance module, recurring
+tasks
+
+**Routine**:
+The Weorc entity: a recurring definition (schedule or interval) with an optional
+**anchor** — an Ethel asset or place, later a Wyrtgeard bed, or nothing. May name
+an owning member; carries no points, allowance or rotation mechanics.
+_Avoid_: chore (as a model name), schedule, plan
 
 **Maintenance Plan**:
-A Heorth-native definition of recurring upkeep for The Home (interval, completion
-history, links to manuals). Projects due work outward as Tasks in the external
-task service.
-_Avoid_: recurring task (that's a Task concern)
+A Weorc Routine anchored to an Ethel asset or place — recurring upkeep of the
+property (interval, completion history, links to manuals held on the asset).
+Still projects due work outward as Tasks in the external task service. Since
+ADR 0014 the *definition* lives in Weorc; only the thing it maintains is Ethel's.
+_Avoid_: recurring task (that's a Task concern), "Ethel's maintenance plans" (the
+plan is Weorc's, the asset is Ethel's)
 
 **Party**:
 A person or entity referenced in Feoh's books (who paid, who a split is

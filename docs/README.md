@@ -55,6 +55,7 @@ independent service, `@wyrhta/core` release discipline.
 
 ## Open questions to work through
 
-- Heorth ↔ KithLedger data flow specifics for Ethel's service contacts (Phase 4).
+- Heorth ↔ KithLedger data flow specifics for service contacts (Phase 4) — which
+  hang off **Weorc** routines, not off Ethel assets (ADR 0014).
 - The per-plan open questions listed at the end of each file in `plans/`.
 - How/when the website correction pass happens (Phase 5+ backlog).

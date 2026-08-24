@@ -114,6 +114,14 @@ counterpart): assets/appliances **including vehicles**, rooms, Maintenance Plans
 (projecting due work into the task provider), and service contacts backed by
 KithLedger — the first real cross-service integration.
 
+**Scope clarified 2026-08-24 (ADR 0014):** Maintenance Plans are **Weorc's first
+slice**, not an Ethel feature. Ethel keeps the asset and place register and the
+upkeep facts that belong to a thing; the recurring definition, its completion
+history and the projection into the task provider live in the new **Weorc**
+module, anchored to an Ethel asset or place. Service contacts (slice D) hang off
+Weorc routines. Nothing about the Phase 4 delivery changes — the phase now ships
+two modules, and the rest of Weorc (the unanchored chores) is Phase 5+.
+
 Prerequisite (revised 2026-08-18, ADR 0008): the old "KithLedger's MCP moves
 from stdio to HTTP" item is **dropped**. The transport move happens by the
 `kith.*` tools landing in `heorth-mcp` instead; KithLedger deploys as a satellite
@@ -125,10 +133,20 @@ Unordered until Phase 3 learnings land:
 
 - Feoh module growth (in Heorth, ADR 0007): checking accounts for daily
   life, investments, retirement projection strategies.
+- **Weorc** module growth (OE *weorc* — work, labour; ADR 0014): the household's
+  own recurring work beyond property upkeep — bins, laundry, cleaning, watering,
+  bedding — as **Routines** with no anchor, next to the asset-anchored Maintenance
+  Plans that shipped in Phase 4. One projection engine into the task provider for
+  the whole household; per-member owner at most, and explicitly **no** points,
+  allowances or rotation mechanics (see Out of scope). Sequenced after Phase 3
+  because which chores a household actually wants projected is exactly the kind of
+  thing real use reprioritises.
 - **Wyrtgeard** module (OE "plant-yard" — the Garden): a household **plant
   library** (what's growing, where, care notes) plus **Ger** (futhorc ᛄ,
   "harvest") — the grow-your-own-food subfeature: planting-calendar planning,
-  monitoring, per-crop history, and weather-aware timing. Weather enters as a new
+  monitoring, per-crop history, and weather-aware timing. Its planting calendar
+  projects through **Weorc's** engine (ADR 0014), with a bed as the routine's
+  anchor — it does not grow a second projector. Weather enters as a new
   **external reference-feed provider** (`WeatherProvider`, see
   [ADR 0003](decisions/0003-external-reference-feeds-behind-providers.md)).
   Own-household-first:
@@ -149,5 +167,10 @@ Unordered until Phase 3 learnings land:
 
 ## Out of scope until further notice
 
-Kids'-chores features (children are out of the house), multi-household, plugin
-runtime, hosted offering, federation.
+Kids'-chore **mechanics** — assignment rotation, points, allowances, gamification
+(children are out of the house) — multi-household, plugin runtime, hosted
+offering, federation.
+
+Note (2026-08-24): recurring household work itself is **not** out of scope; it is
+the **Weorc** module above (ADR 0014). Only the kids-and-rewards layer on top of
+it is.

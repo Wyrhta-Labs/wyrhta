@@ -20,6 +20,13 @@ Phase 4's other two slices are **out of this spec** and get their own:
 the existing `TaskProvider` seam) and **D — service contacts** (KithLedger
 people attached to plans, gated on ADR 0002 Phase B).
 
+**Update 2026-08-24 (ADR 0014):** slices C and D are **Weorc's**, not Ethel's.
+The routine, its completion history and the `TaskProvider` projection live in
+`src/modules/weorc/`, anchored to an Ethel asset or place; service contacts hang
+off Weorc routines. Nothing in slices A and B changes — this spec stays as
+written — but the slice-C spec belongs to Weorc and must not add
+`ethel_maintenance_*` tables.
+
 ## Scope boundary
 
 **In:** the rename; `ethel_places` as a tree; `assets.placeId` +
