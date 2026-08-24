@@ -34,7 +34,7 @@ tool call is translated into calls against an upstream service's **public REST
 API**.
 
 - **One container, both upstreams.** The Heorth tools (`household.*`,
-  `calendar.*`, `meals.*`, `library.*`, `inventory.*`, `tasks.*`, `feoh.*`) and
+  `calendar.*`, `meals.*`, `library.*`, `ethel.*`, `tasks.*`, `feoh.*`) and
   the KithLedger tools (`kith.*`) are served from one endpoint. Each upstream is
   optional and ENV-configured (`HEORTH_BASE_URL`, `KITH_BASE_URL`); with neither
   set, the container still starts.
@@ -50,6 +50,11 @@ API**.
   deployed container. The migration order and preconditions live in
   `heorth-mcp/docs/spec/migration.md`; the frozen tool contract in
   `heorth-mcp/docs/spec/tool-surface.md`.
+
+  **Namespace note (2026-08-25).** `inventory.*` was renamed `ethel.*` when the
+  Inventory module became Ethel (ADR 0013, Heorth v0.6.0). The rename also grew
+  the surface: the four `inventory.*` tools became ten `ethel.*` tools — places,
+  vehicle details and facility details — taking heorth-mcp from 50 to 56 tools.
 
 **The rule this establishes:** a new service does **not** ship an MCP surface.
 It ships a REST API, and heorth-mcp gains tools that call it.

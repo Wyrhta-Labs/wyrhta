@@ -86,11 +86,15 @@ is guarded by a lookup on a natural key, so re-running adds nothing and repairs
 anything missing. It never deletes.
 
 The Ashcombe household: 4 members (2 adults, 2 children), 8 calendar events
-(three recurring), 5 recipes, a week's meal plan, a generated shopping list, 9
-inventory items (one decommissioned), and a finance set of 5 accounts, 8
-envelopes, 15 transactions, and 8 recurring bills — two of them linked to
-inventory items. In KithLedger: 9 people, 5 relationships, 10 interactions, and
-7 reminders.
+(three recurring), 5 recipes, a week's meal plan, a generated shopping list, an
+Ethel register of 10 places (House/Ground floor/Kitchen/Utility room/Study and
+Outside/Driveway/Shed/Garage/Garage shelf) holding 10 assets (one
+decommissioned, and unplaced because it left the house), with 3 detail rows —
+the Ford Focus's vehicle details, the boiler as a heating facility serving the
+kitchen and the study, and the PV inverter as a solar facility serving the
+house — and a finance set of 5 accounts, 8 envelopes, 15 transactions, and 8
+recurring bills — two of them linked to Ethel assets. In KithLedger: 9 people,
+5 relationships, 10 interactions, and 7 reminders.
 
 Two things the seed has to get right, both of which cost a debugging round:
 

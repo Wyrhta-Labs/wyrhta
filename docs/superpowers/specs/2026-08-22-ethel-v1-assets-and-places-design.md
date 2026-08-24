@@ -1,7 +1,7 @@
 # Ethel v1 — Assets, Places, Vehicles and Facilities — Design
 
 **Date:** 2026-08-22 (Part C added 2026-08-24)
-**Status:** accepted 2026-08-24 — Parts A, B and C
+**Status:** shipped 2026-08-25 in Heorth v0.6.0 — Parts A, B and C
 **Decisions:** [ADR 0013 — Ethel absorbs the Inventory module](../../decisions/0013-ethel-absorbs-the-inventory-module.md) ·
 [ADR 0014 — Weorc owns recurring household work](../../decisions/0014-weorc-owns-recurring-household-work.md) ·
 [ADR 0015 — Feature work resumes before deployment](../../decisions/0015-feature-work-resumes-before-deployment.md)

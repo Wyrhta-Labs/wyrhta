@@ -200,3 +200,36 @@ deployment. Phase 3 (deployment) follows after real use validates.
   CONTEXT.md "Party" glossary wording; deploy/README.md dev-db port drift
   (55490 vs 5432, pre-existing); filterNavItems needs a featureKey field when a
   second optional feature lands.
+
+## Ethel v1 — assets, places, vehicles, facilities (ADR 0013), 2026-08-24/25
+
+- Spec `docs/superpowers/specs/2026-08-22-ethel-v1-assets-and-places-design.md`
+  (Parts A/B/C), plan `docs/superpowers/plans/2026-08-24-ethel-v1.md`, 14 tasks,
+  executed subagent-driven across three repos.
+- Heorth: the Inventory module became **Ethel** — `ethel_assets` (+ `place_id`,
+  `location_note`), `ethel_places` (tree, depth 6, NULLS NOT DISTINCT roots),
+  `ethel_vehicles`, `ethel_facilities` + `ethel_facility_places`; REST under
+  `/api/v1/ethel`; feoh's bill/item-cost links renamed to `ethelAssetId`.
+  Released and tagged **v0.6.0** (2026-08-25).
+- heorth-mcp: `inventory.*` (4 tools) → `ethel.*` (10 tools), taking the surface
+  from 50 to 56 tools.
+- Meta (Task 14): `deploy/seed-demo.mjs` now builds a real place tree (House /
+  Ground floor / Kitchen, Utility room, Study; Outside / Driveway, Shed, Garage /
+  Garage shelf), places all assets in it, and adds three detail rows — the Ford
+  Focus's vehicle details and two facilities (boiler → Kitchen + Study, a new PV
+  inverter → House). The decommissioned Panasonic TV keeps NO place: its old
+  `location: 'Gone'` was an absence, not a location, and the decommission trio
+  already records that it left. ADR 0008's namespace list corrected to `ethel.*`,
+  deploy/README counts restated as assets, spec marked shipped.
+- **ACCEPTANCE: the whole stack ran end to end** (`deploy/demo-up.sh --fresh`,
+  Postgres + Heorth + heorth-mcp + KithLedger, empty DB → seeded household):
+  10 places, 10 assets, 1 vehicle detail, 2 facility details all created; two
+  further runs reported 0 created / everything already there (idempotent).
+  Spot-checked live: `placeId` + `includeDescendants` (5 assets under House),
+  `hasFacility=true` (boiler, PV inverter), `servesPlaceId=Kitchen` (boiler).
+- FINDING (environment, not code): `compose.demo.yml` publishes Postgres on host
+  port **55433**, which on this Windows host falls inside a Hyper-V excluded port
+  range (55353-55452) and cannot bind — `docker compose up` fails before any
+  service starts. The acceptance run used a temporary local edit to 55500; the
+  tracked file is unchanged. Worth choosing a host port outside the Windows
+  dynamic-exclusion ranges.

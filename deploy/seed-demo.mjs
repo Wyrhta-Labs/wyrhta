@@ -353,48 +353,138 @@ async function seedHeorth() {
     count('shopping list', verdict);
   }
 
-  // --- inventory -----------------------------------------------------------
-  const items = [
-    { name: 'Vaillant ecoTEC boiler', category: 'heating', manufacturer: 'Vaillant', model: 'ecoTEC plus 832', serialNumber: 'VT-8832-114207', location: 'Utility room', purchaseDate: day(-980), purchasePrice: 2450, warrantyUntil: day(1850), notes: 'Serviced annually; filter changed at each service.' },
-    { name: 'Bosch washing machine', category: 'appliance', manufacturer: 'Bosch', model: 'WAU28T64GB', serialNumber: 'BSH-2864-77213', location: 'Utility room', purchaseDate: day(-620), purchasePrice: 549, warrantyUntil: day(110) },
-    { name: 'Miele dishwasher', category: 'appliance', manufacturer: 'Miele', model: 'G 5310 SC', location: 'Kitchen', purchaseDate: day(-410), purchasePrice: 799, warrantyUntil: day(320) },
-    { name: 'Ford Focus estate', category: 'vehicle', manufacturer: 'Ford', model: 'Focus 1.5 EcoBlue', serialNumber: 'WF0-5K-2291884', location: 'Driveway', purchaseDate: day(-1420), purchasePrice: 11200, notes: 'MOT due each spring.' },
-    { name: 'Bosch cordless drill', category: 'tool', manufacturer: 'Bosch', model: 'GSB 18V-55', location: 'Garage shelf', purchaseDate: day(-240), purchasePrice: 129 },
-    { name: 'Honda lawnmower', category: 'garden', manufacturer: 'Honda', model: 'HRG 416', location: 'Shed', purchaseDate: day(-1100), purchasePrice: 389 },
-    { name: 'Dell XPS 13 laptop', category: 'electronics', manufacturer: 'Dell', model: 'XPS 13 9310', serialNumber: 'DL-9310-4471', location: 'Study', purchaseDate: day(-830), purchasePrice: 1249, warrantyUntil: day(-100) },
-    { name: 'Roberts kitchen radio', category: 'electronics', manufacturer: 'Roberts', model: 'Revival RD70', location: 'Kitchen', purchaseDate: day(-1500), purchasePrice: 165 },
+  // --- ethel: places -------------------------------------------------------
+  // Parent-first, so each child can name its parent's id. Idempotent on the
+  // natural key the API itself enforces: (parent, name).
+  //
+  //   House (building)
+  //     Ground floor (floor) -> Kitchen, Utility room, Study (room)
+  //   Outside (outdoor)
+  //     Driveway (outdoor), Shed (outdoor), Garage (outdoor) -> Garage shelf (storage)
+  const placeTree = [
+    { name: 'House', kind: 'building', parent: null },
+    { name: 'Ground floor', kind: 'floor', parent: 'House' },
+    { name: 'Kitchen', kind: 'room', parent: 'Ground floor' },
+    { name: 'Utility room', kind: 'room', parent: 'Ground floor' },
+    { name: 'Study', kind: 'room', parent: 'Ground floor' },
+    { name: 'Outside', kind: 'outdoor', parent: null },
+    { name: 'Driveway', kind: 'outdoor', parent: 'Outside' },
+    { name: 'Shed', kind: 'outdoor', parent: 'Outside' },
+    { name: 'Garage', kind: 'outdoor', parent: 'Outside' },
+    { name: 'Garage shelf', kind: 'storage', parent: 'Garage' },
   ];
-  const existingItems = (await heorth('GET', '/api/v1/inventory/items?limit=100', { token })) ?? [];
+  const existingPlaces = (await heorth('GET', '/api/v1/ethel/places', { token })) ?? [];
+  const placeByKey = new Map(
+    (existingPlaces.items ?? existingPlaces).map((p) => [`${p.parentId ?? ''}|${p.name}`, p])
+  );
+  const placeId = {};
+  for (const p of placeTree) {
+    const parentId = p.parent ? placeId[p.parent] : null;
+    const [rec, verdict] = await ensure(
+      `place ${p.name}`,
+      async () => placeByKey.get(`${parentId ?? ''}|${p.name}`) ?? null,
+      async () =>
+        heorth('POST', '/api/v1/ethel/places', { ...as, body: { name: p.name, kind: p.kind, parentId } })
+    );
+    placeId[p.name] = rec.id;
+    count('places', verdict);
+  }
+
+  // --- ethel: assets -------------------------------------------------------
+  const items = [
+    { name: 'Vaillant ecoTEC boiler', category: 'heating', manufacturer: 'Vaillant', model: 'ecoTEC plus 832', serialNumber: 'VT-8832-114207', placeId: placeId['Utility room'], purchaseDate: day(-980), purchasePrice: 2450, warrantyUntil: day(1850), notes: 'Serviced annually; filter changed at each service.' },
+    { name: 'Bosch washing machine', category: 'appliance', manufacturer: 'Bosch', model: 'WAU28T64GB', serialNumber: 'BSH-2864-77213', placeId: placeId['Utility room'], purchaseDate: day(-620), purchasePrice: 549, warrantyUntil: day(110) },
+    { name: 'Miele dishwasher', category: 'appliance', manufacturer: 'Miele', model: 'G 5310 SC', placeId: placeId['Kitchen'], purchaseDate: day(-410), purchasePrice: 799, warrantyUntil: day(320) },
+    { name: 'Ford Focus estate', category: 'vehicle', manufacturer: 'Ford', model: 'Focus 1.5 EcoBlue', serialNumber: 'WF0-5K-2291884', placeId: placeId['Driveway'], purchaseDate: day(-1420), purchasePrice: 11200, notes: 'MOT due each spring.' },
+    { name: 'Bosch cordless drill', category: 'tool', manufacturer: 'Bosch', model: 'GSB 18V-55', placeId: placeId['Garage shelf'], purchaseDate: day(-240), purchasePrice: 129 },
+    { name: 'Honda lawnmower', category: 'garden', manufacturer: 'Honda', model: 'HRG 416', placeId: placeId['Shed'], purchaseDate: day(-1100), purchasePrice: 389 },
+    { name: 'Dell XPS 13 laptop', category: 'electronics', manufacturer: 'Dell', model: 'XPS 13 9310', serialNumber: 'DL-9310-4471', placeId: placeId['Study'], purchaseDate: day(-830), purchasePrice: 1249, warrantyUntil: day(-100) },
+    { name: 'Roberts kitchen radio', category: 'electronics', manufacturer: 'Roberts', model: 'Revival RD70', placeId: placeId['Kitchen'], purchaseDate: day(-1500), purchasePrice: 165 },
+    // Stands in the garage, serves the whole house - two different facts, and
+    // the facility row below carries the second one.
+    { name: 'PV inverter', category: 'energy', manufacturer: 'SolarEdge', model: 'SE5000H', serialNumber: 'SE-5000-31288', placeId: placeId['Garage'], purchaseDate: day(-300), purchasePrice: 1780, notes: 'Roof array, 4.2 kWp.' },
+  ];
+  const existingItems = (await heorth('GET', '/api/v1/ethel/assets?limit=100', { token })) ?? [];
   const itemByName = new Map((existingItems.items ?? existingItems).map((i) => [i.name, i]));
   const itemId = {};
   for (const it of items) {
     const [rec, verdict] = await ensure(
-      `item ${it.name}`,
+      `asset ${it.name}`,
       async () => itemByName.get(it.name) ?? null,
-      async () => heorth('POST', '/api/v1/inventory/items', { ...as, body: it })
+      async () => heorth('POST', '/api/v1/ethel/assets', { ...as, body: it })
     );
     itemId[it.name] = rec.id;
-    count('inventory', verdict);
+    count('ethel', verdict);
   }
 
-  // One decommissioned item, so the lifecycle is visible in the demo and the
-  // "active" filter has something to exclude.
+  // One decommissioned asset, so the lifecycle is visible in the demo and the
+  // active filter has something to exclude.
+  //
+  // It gets NO PLACE. Its old location string 'Gone' is not a location: the
+  // decommission trio below already records that it left the house, and a
+  // place named Gone would model an absence as somewhere to stand.
   const oldTv = 'Panasonic plasma TV';
   const [tv, tvVerdict] = await ensure(
-    `item ${oldTv}`,
+    `asset ${oldTv}`,
     async () => itemByName.get(oldTv) ?? null,
     async () =>
-      heorth('POST', '/api/v1/inventory/items', {
+      heorth('POST', '/api/v1/ethel/assets', {
         ...as,
-        body: { name: oldTv, category: 'electronics', manufacturer: 'Panasonic', model: 'TX-P42', location: 'Gone', purchaseDate: day(-2600), purchasePrice: 699 },
+        body: { name: oldTv, category: 'electronics', manufacturer: 'Panasonic', model: 'TX-P42', placeId: null, purchaseDate: day(-2600), purchasePrice: 699 },
       })
   );
-  count('inventory', tvVerdict);
+  count('ethel', tvVerdict);
   if (tvVerdict === 'created') {
-    await heorth('POST', `/api/v1/inventory/items/${tv.id}/decommission`, {
+    await heorth('POST', `/api/v1/ethel/assets/${tv.id}/decommission`, {
       ...as,
       body: { date: day(-45), reason: 'sold', proceeds: 60 },
     });
+  }
+
+  // --- ethel: detail rows --------------------------------------------------
+  // Both detail tables and the facility->place serves-link, so the demo stack
+  // exercises them end to end. PUT is an upsert; the lookup is only here to
+  // keep the tally honest about what a re-run actually changed.
+  const [, vehicleVerdict] = await ensure(
+    'vehicle details for the Ford Focus',
+    async () => (await heorth('GET', `/api/v1/ethel/assets/${itemId['Ford Focus estate']}`, { token }))?.vehicle ?? null,
+    async () =>
+      heorth('PUT', `/api/v1/ethel/assets/${itemId['Ford Focus estate']}/vehicle`, {
+        ...as,
+        body: {
+          registration: 'YH19 KRV',
+          vin: 'WF05K2291884XA731',
+          firstRegisteredOn: day(-2380),
+          odometer: 78450,
+          odometerReadAt: day(-12),
+          // Documentation, not a schedule (ADR 0013 Amendments 1).
+          serviceIntervalMonths: 12,
+        },
+      })
+  );
+  count('vehicle details', vehicleVerdict);
+
+  const facilities = [
+    // Stands in the utility room; heats the kitchen and the study.
+    { asset: 'Vaillant ecoTEC boiler', kind: 'heating', commissionedOn: day(-980), serviceIntervalMonths: 12, serves: ['Kitchen', 'Study'] },
+    { asset: 'PV inverter', kind: 'solar', commissionedOn: day(-300), serves: ['House'] },
+  ];
+  for (const f of facilities) {
+    const [, verdict] = await ensure(
+      `facility details for the ${f.asset}`,
+      async () => (await heorth('GET', `/api/v1/ethel/assets/${itemId[f.asset]}`, { token }))?.facility ?? null,
+      async () =>
+        heorth('PUT', `/api/v1/ethel/assets/${itemId[f.asset]}/facility`, {
+          ...as,
+          body: {
+            kind: f.kind,
+            commissionedOn: f.commissionedOn,
+            ...(f.serviceIntervalMonths ? { serviceIntervalMonths: f.serviceIntervalMonths } : {}),
+            servesPlaceIds: f.serves.map((n) => placeId[n]),
+          },
+        })
+    );
+    count('facility details', verdict);
   }
 
   // --- finance (Feoh, ADR 0007 — always on) --------------------------------
@@ -504,7 +594,7 @@ async function seedHeorth() {
     count('transactions', verdict);
   }
 
-  // Recurring bills, one of them tied to an inventory item so the item-cost
+  // Recurring bills, two of them tied to an ethel asset so the item-cost
   // link has something real behind it.
   const bills = [
     { payee: 'Northern Gas', amount: 142.0, cadence: 'monthly', nextDue: day(6), envelope: 'Utilities' },
@@ -531,7 +621,7 @@ async function seedHeorth() {
             cadence: b.cadence,
             nextDue: b.nextDue,
             envelopeId: envId[b.envelope] ?? null,
-            inventoryItemId: b.item ? (itemId[b.item] ?? null) : null,
+            ethelAssetId: b.item ? (itemId[b.item] ?? null) : null,
           },
         })
     );
