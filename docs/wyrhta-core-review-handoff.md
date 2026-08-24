@@ -1,8 +1,8 @@
 # Handoff — `@wyrhta/core` code review, remaining fixes
 
 A full code review of `wyrhta-core` at **v0.4.0** was done on **2026-08-23**.
-Findings 1, 2 and 4 were fixed immediately and are already committed (see
-*Already done*). This document is the work order for the rest: **finding 5–9**.
+Findings 1–8 are fixed and committed (see *Already done*); the only remaining
+item is **finding 9**, which is deliberately deferred.
 Line numbers refer to the tree at commit `0dcf674` (the last of the
 fix commits above).
 
@@ -16,7 +16,8 @@ order.
   `Wyrhta-Labs/wyrhta-core`). Read its `README.md` first — the UPPER_SNAKE_CASE
   domain-error convention, the "what core is NOT" boundary, and the release
   discipline all constrain how these fixes should be written.
-- Baseline to hold: `npm run typecheck` clean, `npm test` = **117 passing**,
+- Baseline to hold: `npm run typecheck` clean, `npm test` = **131 passing**
+  (as of v0.4.2),
   `npm run build` clean (the build now also copies migrations into `dist/`).
 - One change → one focused commit, repo-local, conventional-commit style
   (`fix(scope): …`). If an item is tracked as a GitHub issue, name it in the
@@ -33,6 +34,10 @@ order.
 | 4 | RSA CRT members (`p`/`q`/`dp`/`dq`/`qi`) could survive `loadPublicKey` and leak into a JWKS document | `0dcf674` — `assertShape` rejects them in public material, `toJwks` strips all six private members |
 | 3 | `rateLimit` trusted the client-supplied `X-Forwarded-For` (bypass, shared bucket, unbounded store) | `d6f1559` + `eed04dd` — 3a store pruning (`maxEntries`, `size` getter), 3b injectable `resolveIp`, 3c trust requirement in the README module map and in `docs/plans/household-stack-compose.md` (meta repo `07bdac9`) |
 | 10 | README install examples still said 0.3.1 | `52da60d` — both point at 0.4.1, in the same commit as the version bump |
+| 5 | `seedHousehold` was not race-safe — two concurrent boots both inserted and the loser crashed the boot on a `23505` | `fd9b1c6` — the insert catches the unique violation via the shared `isUniqueViolation` helper and re-selects the winner's row |
+| 6 | `authenticate` leaked user existence via timing (unknown email skipped the argon2 work) | `a070aac` — the not-found path verifies against a lazily-built throwaway hash (`verifyDummyPassword` in `./identity`); return shape unchanged |
+| 7 | HSTS localhost check was a substring match (`notlocalhost.example.com` lost HSTS) | `c070ac6` — host is port-stripped (bracketed IPv6 included) and compared exactly: `localhost`, `*.localhost`, `127.0.0.1`, `::1` |
+| 8 | `errorHandler` read `process.env.NODE_ENV`, breaking the env-agnostic boundary | `b91841f` — design call resolved as handoff option 1: additive `createErrorHandler({ validationDetails })` factory; the `errorHandler` const keeps the NODE_ENV default; README module map states the deviation |
 
 ## 5. `seedHousehold` is not race-safe — (mechanical)
 
@@ -161,8 +166,9 @@ may break, a patch bump is safe.
   rode along in the tag: the core migration SQL that a machine-global
   `*.sql` ignore kept out of git (`be87446`), and `CORE_VERSION`
   (`2927d59`).
-- **0.4.2 (patch)** can carry: 5, 6, 7, 8 (docs or additive factory).
-  Nothing in that set is breaking.
+- **0.4.2 (patch)** shipped **2026-08-24** (tag `v0.4.2`) carrying 5, 6, 7, 8.
+  Nothing in that set is breaking; consumers on `^0.4.0` pick it up on a
+  lockfile refresh.
 - **9**, if ever implemented, is a **minor** (inferred-type change).
 - The publish pipeline validates `v*` tag == `package.json` version and runs
   typecheck + tests + build first, so the usual flow is: fix commits →
@@ -178,7 +184,7 @@ For any commit from this handoff:
 
 ```
 npm run typecheck   # clean
-npm test            # 117 passing before your change, all plus your new ones after
+npm test            # 131 passing before your change, all plus your new ones after
 npm run build       # and dist/db/migrations still lands
 ```
 
