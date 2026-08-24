@@ -41,12 +41,36 @@ _Avoid_: user (reserve "user" for the auth-level account)
 
 **Ethel**:
 The physical property as a domain (OE *ēðel*, rune ᛟ — immovable wealth, the
-estate; counterpart to Feoh's movable wealth): the building, rooms, assets/
-appliances, vehicles, and the upkeep *facts* that belong to a thing (manuals,
-warranty, the stated service interval). The recurring work itself is **Weorc**,
+estate; counterpart to Feoh's movable wealth): the building as a tree of
+**Places**, the **Assets** in them (appliances, vehicles), the **Facilities** that
+serve them, and the upkeep *facts* that belong to a thing (manuals, warranty, the
+stated service interval). The recurring work itself is **Weorc**,
 which anchors routines here (ADR 0014); service contacts are KithLedger people
 referenced from a routine.
 _Avoid_: The Home, house profile, inventory
+
+**Asset**:
+The Ethel entity: a durable thing the household owns, with its lifecycle and
+finance surface (purchase, warranty, decommission, cost links into Feoh). Sits in
+at most one **Place**, and may carry at most one detail row — vehicle or facility
+— which is the only signal of what kind of thing it is (`category` is free text).
+_Avoid_: item, inventory item, product
+
+**Place**:
+The Ethel entity for the home itself: a node in a tree (`building`, `floor`,
+`room`, `outdoor`, `storage`) with an optional parent. Nesting is conventional,
+not enforced — a shed is `outdoor` and holds `storage`. Replaces the old free-text
+`location` on an asset; the leftover prose ("behind the boiler") lives on in the
+asset's `locationNote`.
+_Avoid_: room (as the model name — a room is one kind of place), location, area
+
+**Facility**:
+A building system the household maintains but did not buy off a shelf — heating,
+water, electrics, PV, ventilation. Modelled as a detail row on an **Asset**, plus
+the set of Places it *serves*, which is a different fact from the Place it stands
+in. Carries the **stated** service interval as documentation; the routine that
+acts on it is **Weorc's** and never reads that field as a trigger (ADR 0014 §4).
+_Avoid_: utility (that is a bill in Feoh), system, installation, amenity
 
 **Office** (future):
 Document management for the household (insurance policies, contracts, meter

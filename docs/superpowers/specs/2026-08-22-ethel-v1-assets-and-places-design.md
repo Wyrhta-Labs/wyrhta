@@ -1,24 +1,34 @@
-# Ethel v1 — Assets, Places and Vehicles — Design
+# Ethel v1 — Assets, Places, Vehicles and Facilities — Design
 
-**Date:** 2026-08-22
-**Status:** proposed
-**Decision:** [ADR 0013 — Ethel absorbs the Inventory module](../../decisions/0013-ethel-absorbs-the-inventory-module.md)
+**Date:** 2026-08-22 (Part C added 2026-08-24)
+**Status:** accepted 2026-08-24 — Parts A, B and C
+**Decisions:** [ADR 0013 — Ethel absorbs the Inventory module](../../decisions/0013-ethel-absorbs-the-inventory-module.md) ·
+[ADR 0014 — Weorc owns recurring household work](../../decisions/0014-weorc-owns-recurring-household-work.md) ·
+[ADR 0015 — Feature work resumes before deployment](../../decisions/0015-feature-work-resumes-before-deployment.md)
 **Supersedes for the asset register:** Heorth's `docs/superpowers/specs/2026-08-16-feoh-inventory-lifecycle-design.md`, Part 1
 
 ## Goal
 
-Turn the shipped Inventory module into the first two slices of **Ethel**, the
-physical-property domain (`strategy.md` Phase 4):
+Turn the shipped Inventory module into **Ethel**, the physical-property domain
+(`strategy.md` Phase 4) — the register that Weorc's chores will hang on:
 
 - **A — Domain and naming.** The rename, in three repos, with the migration.
 - **B — Assets, places and vehicles.** `location` free text becomes a place
   tree; vehicles get a shape; the existing lifecycle/TCO surface is preserved
   intact.
+- **C — Facilities** (added 2026-08-24). The building's own systems — heating,
+  water, electrics, PV — as a detail row on an asset, with the places each one
+  serves. See the numbering warning below.
 
 Phase 4's other two slices are **out of this spec** and get their own:
 **C — Maintenance Plans** (recurring upkeep projected outward as Tasks through
 the existing `TaskProvider` seam) and **D — service contacts** (KithLedger
 people attached to plans, gated on ADR 0002 Phase B).
+
+**Numbering warning.** This spec's **Part C** (facilities) is not Phase 4's
+**slice C** (Weorc's maintenance routine). The two Cs are unrelated; the phase's
+slice letters come from `strategy.md`, this spec's part letters from its own
+structure.
 
 **Update 2026-08-24 (ADR 0014):** slices C and D are **Weorc's**, not Ethel's.
 The routine, its completion history and the `TaskProvider` projection live in
@@ -31,16 +41,20 @@ written — but the slice-C spec belongs to Weorc and must not add
 
 **In:** the rename; `ethel_places` as a tree; `assets.placeId` +
 `assets.locationNote`; `ethel_vehicles`; the place/vehicle REST surface; the
-descendant-aware asset filter; the web page rename plus place management and
-vehicle details; the `heorth-mcp` tool rename plus place and vehicle-detail
-tools; the data migration; the demo seed.
+descendant-aware asset filter; `ethel_facilities` + `ethel_facility_places` and
+their REST surface; the web page rename plus place management, vehicle details
+and facility details; the `heorth-mcp` tool rename plus place, vehicle-detail and
+facility-detail tools; the data migration; the demo seed.
 
-**Out, deliberately:** Maintenance Plans; service contacts; photos; documents
+**Out, deliberately:** Maintenance Plans and every other recurring definition —
+Weorc owns those (ADR 0014), and a facility's `serviceIntervalMonths` is a stated
+fact, not a schedule; service contacts; photos; documents
 (the Office module is deferred — documents stay in Library); barcodes; loan
 tracking; quantities; Tier-3 costs (energy, allocated shares — unchanged from
 the 2026-08-16 cut); odometer history; **consumables and pantry stock**, which
 is a different feature that merely shares the English word "inventory"
-(ADR 0013 §7).
+(ADR 0013 §7); meter readings and consumption history for a facility (that is the
+Office module's ground, and Tier-3 energy costs were already cut).
 
 ## What is preserved untouched
 
@@ -105,8 +119,8 @@ to `ethel.*` in this repo.
 
 ### This repo
 
-`CONTEXT.md` (the Ethel entry gains **Asset** and **Place**; `_Avoid_:
-inventory` becomes true rather than aspirational), `strategy.md` Phase 4,
+`CONTEXT.md` (the Ethel entry gains **Asset**, **Place** and **Facility**;
+`_Avoid_: inventory` becomes true rather than aspirational), `strategy.md` Phase 4,
 `deploy/seed-demo.mjs`, `deploy/README.md`, ADR 0008's tool list, and this
 spec's own status when it lands.
 
@@ -124,7 +138,7 @@ ALTER TABLE ethel_assets RENAME CONSTRAINT inventory_reason_check TO ethel_asset
 ALTER TABLE ethel_assets RENAME CONSTRAINT inventory_decommission_pair_check TO ethel_assets_decommission_pair_check;
 ```
 
-Then the new tables (Part B), then the place backfill.
+Then the new tables (Parts B and C), then the place backfill.
 
 **This is the riskiest part of the change.** `db:generate` may emit
 `DROP TABLE` + `CREATE TABLE` for what is semantically a rename, and this repo
@@ -146,8 +160,9 @@ forbids hand-editing snapshots. Procedure:
 4. Rehearse on a **dump of the household database** before running it on the
    household database.
 
-**Rollback** is the inverse renames plus dropping the two new tables; it loses
-only the place tree, since no asset data is destroyed at any point.
+**Rollback** is the inverse renames plus dropping the four new tables; it loses
+only the place tree and the facility details, since no asset data is destroyed at
+any point.
 
 ---
 
@@ -328,6 +343,126 @@ idempotency.
 
 ---
 
+## Part C — Facilities
+
+**Added 2026-08-24.** Not to be confused with Phase 4 **slice C**, which is
+Weorc's maintenance routine (ADR 0014). This part is *spec* Part C: the
+building's own systems.
+
+A **facility** is a building system — heating, water, electrics, PV, ventilation
+— which the household maintains but which is not an appliance you carry from one
+house to the next. It is modelled as a **detail row on an asset**, exactly as
+Part B models a vehicle: the asset carries the shared surface (warranty, purchase
+price, manuals, TCO, decommission, the `feoh` links), and the detail row carries
+what is only true of a system.
+
+### Table `ethel_facilities`
+
+| column | type | notes |
+|---|---|---|
+| `assetId` | uuid PK → `ethel_assets.id` | `ON DELETE CASCADE` — the detail row must not outlive its asset |
+| `createdAt` / `updatedAt` | timestamptz | `now()` |
+| `kind` | text NOT NULL | CHECK: `heating`, `water`, `electrical`, `solar`, `sewage`, `ventilation`, `network`, `other` |
+| `commissionedOn` | date NULL | when the system went into service — not the purchase date, which the asset already holds |
+| `serviceIntervalMonths` | integer NULL | `CHECK (service_interval_months > 0)` |
+
+### Table `ethel_facility_places`
+
+| column | type | notes |
+|---|---|---|
+| `facilityId` | uuid → `ethel_facilities.asset_id` | `ON DELETE CASCADE` |
+| `placeId` | uuid → `ethel_places.id` | `ON DELETE CASCADE` |
+
+`PRIMARY KEY (facility_id, place_id)`. Both sides cascade because a row here is a
+*link*, not data: deleting a place removes what it was served by, and never
+deletes the facility. This is deliberately unlike `assets.placeId`, which is
+`ON DELETE SET NULL` because an unplaced asset is a recoverable state.
+
+### Three rules that make the model legible
+
+- **`assets.placeId` is where the system stands; the join table is what it
+  serves.** The boiler is *in* the utility room and *heats* the kitchen and the
+  study. Both facts are wanted and neither substitutes for the other. A facility
+  with no served places is normal (the mains water connection serves the
+  building as a whole, and nobody needs to enumerate that).
+- **`serviceIntervalMonths` is documentation, not a schedule.** ADR 0014 §4
+  assigns "the stated service interval" to Ethel as a fact of the thing. **Weorc
+  never reads it as a trigger.** Its only behavioural use is as a *default* the
+  routine form offers when you create a Weorc routine anchored to this asset.
+  Without that rule the household ends up with two intervals that can silently
+  disagree, and no way to tell which one is running.
+- **An asset has at most one detail row.** Part B makes "the detail row exists"
+  the only signal of what kind of thing an asset is — `category` is free text and
+  always was. Allowing an asset to be both a vehicle and a facility would destroy
+  that signal, so the upsert rejects it: `409 ASSET_DETAIL_CONFLICT`.
+
+### REST additions
+
+- `PUT /assets/:id/facility` — upsert (201 on create, 200 on update). Body:
+  `kind`, `commissionedOn?`, `serviceIntervalMonths?`, `servesPlaceIds[]` (may be
+  empty; replaces the set wholesale rather than merging, so removing a served
+  place is one call). `404` unknown asset; `400 PLACE_NOT_FOUND` when
+  `servesPlaceIds` names an id that does not exist, classified through
+  `pgErrorCode` (**never** by reading `e.code`); `409 ASSET_DETAIL_CONFLICT` when
+  the asset already carries a vehicle detail.
+- `DELETE /assets/:id/facility` — drops the detail row and its links, keeps the
+  asset. The links go by cascade, not by a second statement.
+- `GET /assets/:id` inlines the facility detail with its `servesPlaceIds`, beside
+  the vehicle detail from Part B, so the detail view stays one request. **The
+  list does not inline it.**
+- Two new filters on `GET /assets`, and no more:
+  - `hasFacility=true` — the "systems of the house" screen.
+  - `servesPlaceId=<uuid>` — "what serves this room". Direct links only; it does
+    **not** walk the place tree, because a system serving a floor is a different
+    claim from one serving each room on it, and conflating them would make the
+    answer untrustworthy.
+  - Both respect the tested `limit` cap of 100 and the existing `limit`/`offset`
+    paging. Neither combines with `includeDescendants`, which is a `placeId`
+    modifier and unrelated.
+
+Writes are `requireRole('admin','adult')` like the rest of the module. No
+maintenance-admin quarantine (that guard is a finance-mutation concern).
+
+### Web
+
+- **Asset detail** gains "Add facility details" beside Part B's "Add vehicle
+  details". Once either detail row exists the other action is hidden, which is
+  the `409` expressed as UI rather than as an error the member has to read.
+- **Served places** is a multi-select assembled from the flat `GET /places`
+  response the picker already loads — no extra request, one source of truth for a
+  place's name.
+- **A Facilities filter** on the Ethel page (`hasFacility`), and on a place in the
+  place-management tree, "systems serving this place" (`servesPlaceId`).
+- i18n: `ethel.facility.*` in **both** locales, kinds and errors included.
+  `catalog-parity.test.ts` forces en/de to move together.
+
+### heorth-mcp
+
+- `ethel.set_facility_details` — mirrors `ethel.set_vehicle_details`; recording
+  "the boiler was commissioned in 2019 and wants servicing yearly"
+  conversationally is the case that justifies it.
+- `ethel.list_assets` gains `hasFacility` and `servesPlaceId`.
+- **No separate list tool.** Facilities are assets; a second listing surface for
+  a filter would be two ways to ask one question.
+
+### Migration
+
+Purely **additive**: two new tables, no column changes, **no backfill** — nothing
+in today's rows identifies a facility, and guessing from `category` free text
+would manufacture data. They ride the same migration chain as Part B's new
+tables. All the migration risk stays in Part A's rename.
+
+### Demo seed
+
+The house gains a gas boiler (asset in `Utility room`, facility `kind='heating'`,
+`commissionedOn`, `serviceIntervalMonths=12`, serving `Kitchen` and `Study`) and
+a PV inverter (asset in `Garage`, facility `kind='solar'`, serving `House`). Both
+the place tree and the serves-link are then exercised end to end by the demo
+stack, which is the acceptance check. Written as a member, never the admin, and
+idempotent on its natural key like the rest of the seed.
+
+---
+
 ## Testing
 
 **Heorth, backend:**
@@ -345,14 +480,23 @@ idempotency.
 - Vehicles: upsert 201 then 200; unique registration and VIN; the odometer
   pairing CHECK; `ON DELETE CASCADE` removing the detail row with its asset;
   `GET /assets/:id` inlining the detail.
+- Facilities: upsert 201 then 200; the `kind` CHECK and the
+  `serviceIntervalMonths > 0` CHECK; `ON DELETE CASCADE` removing the detail row
+  with its asset; deleting a served place removing the link row but **not** the
+  facility; `PLACE_NOT_FOUND` for an unknown id in `servesPlaceIds`;
+  `ASSET_DETAIL_CONFLICT` when the asset already has a vehicle detail (and the
+  mirror case, a vehicle upsert onto a facility asset); `servesPlaceIds` replacing
+  rather than merging the set; `GET /assets/:id` inlining the detail; the
+  `hasFacility` and `servesPlaceId` filters under the `limit` cap and paging;
+  `servesPlaceId` **not** walking the place tree.
 - The `hasDisposalLink` touchpoint against the renamed column, so a future
   rename breaks loudly.
 - Every existing inventory test carried over and passing at the new path.
 
 **Heorth, web:** the contract test added on 2026-08-21 — which replays the
 page's real requests through `qs()` against the server's own Zod schema —
-extends to the new params (`placeId`, `includeDescendants`) and to the places
-endpoint. Place-tree assembly and cycle-safe rendering get unit tests.
+extends to the new params (`placeId`, `includeDescendants`, `hasFacility`,
+`servesPlaceId`) and to the places endpoint. Place-tree assembly and cycle-safe rendering get unit tests.
 
 **heorth-mcp:** tool-registration test for the renamed and new tools; the place
 tools against a stubbed REST layer.
@@ -363,13 +507,18 @@ together, and it has already caught one bug this class of change can produce.
 
 ## Rollout
 
-1. **Heorth** — rename, migration, new tables and endpoints, web, tests. Minor
-   bump (pre-1.0: minor may break).
+1. **Heorth** — rename, migration, new tables and endpoints (places, vehicles,
+   facilities), web, tests. Minor bump (pre-1.0: minor may break).
 2. **heorth-mcp** — tool rename and the new tools. Rebuilt and deployed
    **together with Heorth**; a skew leaves the tools broken, not degraded.
-3. **This repo** — ADR 0013 accepted, `strategy.md` Phase 4 rewritten to name
-   slices B/C/D, `CONTEXT.md` glossary, `seed-demo.mjs`, `deploy/README.md`,
+3. **This repo** — ADRs 0013 and 0014 accepted, ADR 0015 (feature work before
+   deployment), `strategy.md` Phase 3 and Phase 4, `CONTEXT.md` glossary
+   (**Asset**, **Place**, **Facility**), `seed-demo.mjs`, `deploy/README.md`,
    ADR 0008's tool list.
+
+**Weorc's first slice follows this spec, not inside it.** It gets its own
+brainstorm and its own spec once places and assets are real, so its routines can
+be designed against an anchor that exists.
 
 Each repo is its own commit. Nothing is staged across repos.
 
@@ -386,3 +535,20 @@ Each repo is its own commit. Nothing is staged across repos.
 - **Place kinds are unenforced by design**, so nothing stops a `building` inside
   a `storage`. If that turns out to matter, the fix is a lint-style warning in
   the UI, not a CHECK constraint.
+- **Only facilities get `serviceIntervalMonths`, and vehicles deliberately do
+  not** (ADR 0013 §6 cut service intervals from the vehicle row). A car has a
+  service interval too, so the asymmetry is real and will look arbitrary on the
+  vehicle detail screen. Accepted for now: the field earns its place on a
+  facility because a boiler's interval is printed in its manual and drives the
+  household's upkeep, and moving it up to the asset later is an additive
+  migration, not a redesign.
+- **The stated interval and the Weorc schedule can drift.** The spec forbids
+  Weorc from reading the field as a trigger and offers it only as a form default,
+  which keeps one interval authoritative — but nothing detects that the routine
+  says 24 months where the manual says 12. If that bites, the fix is a warning on
+  the asset detail, not a constraint across two modules.
+- **`servesPlaceId` not walking the tree will surprise someone.** Asking what
+  serves the ground floor will not list the boiler that serves each room on it.
+  Chosen because the alternative invents claims the household never made; if the
+  narrow answer proves useless, widening it is a recursive CTE like Part B's, and
+  a new explicit parameter rather than a change of meaning.

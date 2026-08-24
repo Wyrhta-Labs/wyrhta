@@ -1,6 +1,6 @@
 # 0013 — Ethel absorbs the Inventory module
 
-**Status:** proposed 2026-08-22
+**Status:** accepted 2026-08-24
 
 ## Context
 

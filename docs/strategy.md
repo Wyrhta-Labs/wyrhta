@@ -105,14 +105,34 @@ dry-run); shipped as **Heorth v0.3.1** 2026-07-28.
 
 Homelab deployment (existing HAProxy FQDN → containers), Postgres
 with backups, seed the real household, live with it. Learnings from real use
-reprioritise everything below. Feature work does not resume until deployed.
+reprioritise everything below.
+
+**Deferred 2026-08-24 (ADR 0015).** This phase now runs **after** Phase 4's
+Ethel v1 and Weorc's first slice. The gate on it was never code — it is the human
+list in `docs/manual-todo.md` (tenant `ApplicationAccessPolicy`, the first-live-run
+smokes, the Pi and touchscreen purchase, secret rotation) — and the household
+story is thin exactly where acceptance is judged, because the chores are unbuilt.
+The old rule "feature work does not resume until deployed" is **retired**; what
+survives it is the sentence above it, that real use reprioritises everything
+after this phase. The human items are **not** deferred and should run in
+parallel. One slice ahead of deployment, not two: a second would need its own
+ADR.
 
 ### Phase 4 — Ethel v1
 
 The physical property domain (OE *ēðel*, rune ᛟ — immovable wealth, Feoh's
-counterpart): assets/appliances **including vehicles**, rooms, Maintenance Plans
-(projecting due work into the task provider), and service contacts backed by
-KithLedger — the first real cross-service integration.
+counterpart): assets/appliances **including vehicles**, the home itself as a tree
+of places (building → floor → room, plus outdoor and storage), the building's own
+**facilities** (heating, water, electrics, PV — a detail row on an asset, with the
+places each serves), Maintenance Plans (projecting due work into the task
+provider), and service contacts backed by KithLedger — the first real
+cross-service integration.
+
+**Now the phase that runs first (ADR 0015):** Phase 3 deployment is deferred
+behind this phase and Weorc's first slice, because chores need assets, places and
+facilities to hang on. Design:
+[Ethel v1 — Assets, Places, Vehicles and Facilities](superpowers/specs/2026-08-22-ethel-v1-assets-and-places-design.md)
+(accepted, Parts A–C).
 
 **Scope clarified 2026-08-24 (ADR 0014):** Maintenance Plans are **Weorc's first
 slice**, not an Ethel feature. Ethel keeps the asset and place register and the
@@ -121,6 +141,10 @@ history and the projection into the task provider live in the new **Weorc**
 module, anchored to an Ethel asset or place. Service contacts (slice D) hang off
 Weorc routines. Nothing about the Phase 4 delivery changes — the phase now ships
 two modules, and the rest of Weorc (the unanchored chores) is Phase 5+.
+
+**Delivery order inside the phase (2026-08-24):** Ethel v1 Parts A–C ship first
+as one release; Weorc's first slice gets its own brainstorm and spec afterwards,
+so its routines are designed against an anchor that already exists.
 
 Prerequisite (revised 2026-08-18, ADR 0008): the old "KithLedger's MCP moves
 from stdio to HTTP" item is **dropped**. The transport move happens by the

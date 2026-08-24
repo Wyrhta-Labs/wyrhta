@@ -1,6 +1,6 @@
 # 0014 — Weorc owns recurring household work; Ethel owns the property
 
-**Status:** proposed 2026-08-24
+**Status:** accepted 2026-08-24
 
 ## Context
 

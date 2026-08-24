@@ -18,6 +18,7 @@ Cross-cutting decisions that affect more than one Wyrhta Labs service.
 - [0012 — A separate Compose file for a throwaway demo household](0012-a-separate-compose-file-for-a-throwaway-demo-household.md)
 - [0013 — Ethel absorbs the Inventory module](0013-ethel-absorbs-the-inventory-module.md)
 - [0014 — Weorc owns recurring household work; Ethel owns the property](0014-weorc-owns-recurring-household-work.md)
+- [0015 — Feature work resumes before deployment](0015-feature-work-resumes-before-deployment.md)
 
 ## Format
 
