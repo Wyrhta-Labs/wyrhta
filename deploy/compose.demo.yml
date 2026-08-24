@@ -44,10 +44,13 @@ services:
       # STOP PERSISTING DATA.
       - db_data:/var/lib/postgresql
       - ./initdb:/docker-entrypoint-initdb.d:ro
-    # 55433, not 5432: the demo must not fight the dev stack or any unrelated
-    # cluster for the default port.
+    # 55500, not 5432: the demo must not fight the dev stack or any unrelated
+    # cluster for the default port. Not 55433 either, which this line used to
+    # say - on Windows hosts that falls inside Hyper-V's dynamic excluded port
+    # range (observed 55353-55452 on 2026-08-25), where the bind is refused
+    # before any container starts. Any high port outside that range does.
     ports:
-      - "55433:5432"
+      - "55500:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
       interval: 5s
@@ -60,7 +63,7 @@ services:
     environment:
       # The demo uses the PRIMARY database inside its own throwaway cluster.
       # That is safe here precisely because the cluster is isolated: it is on
-      # its own volume and published on 55433, so no test suite pointing at
+      # its own volume and published on 55500, so no test suite pointing at
       # localhost:5432 can reach it.
       DATABASE_URL: postgres://kithledger:${KITH_DB_PASSWORD:?}@db:5432/kithledger
       JWT_SECRET: ${KITH_JWT_SECRET:?set it in deploy/.env.demo}

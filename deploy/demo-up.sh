@@ -148,7 +148,7 @@ cat <<EOF
   Heorth        http://localhost:4100     (web UI + REST at /api/v1)
   KithLedger    http://localhost:4102     (REST at /api/v1)
   heorth-mcp    http://localhost:4103     (MCP over Streamable HTTP)
-  Postgres      localhost:55433           (user postgres)
+  Postgres      localhost:55500           (user postgres)
 
   LOG IN AS A MEMBER — every one of these has the password: $DEMO_MEMBER_PASSWORD
 

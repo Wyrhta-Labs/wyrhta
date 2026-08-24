@@ -391,7 +391,7 @@ async function seedHeorth() {
   }
 
   // --- ethel: assets -------------------------------------------------------
-  const items = [
+  const assets = [
     { name: 'Vaillant ecoTEC boiler', category: 'heating', manufacturer: 'Vaillant', model: 'ecoTEC plus 832', serialNumber: 'VT-8832-114207', placeId: placeId['Utility room'], purchaseDate: day(-980), purchasePrice: 2450, warrantyUntil: day(1850), notes: 'Serviced annually; filter changed at each service.' },
     { name: 'Bosch washing machine', category: 'appliance', manufacturer: 'Bosch', model: 'WAU28T64GB', serialNumber: 'BSH-2864-77213', placeId: placeId['Utility room'], purchaseDate: day(-620), purchasePrice: 549, warrantyUntil: day(110) },
     { name: 'Miele dishwasher', category: 'appliance', manufacturer: 'Miele', model: 'G 5310 SC', placeId: placeId['Kitchen'], purchaseDate: day(-410), purchasePrice: 799, warrantyUntil: day(320) },
@@ -404,16 +404,16 @@ async function seedHeorth() {
     // the facility row below carries the second one.
     { name: 'PV inverter', category: 'energy', manufacturer: 'SolarEdge', model: 'SE5000H', serialNumber: 'SE-5000-31288', placeId: placeId['Garage'], purchaseDate: day(-300), purchasePrice: 1780, notes: 'Roof array, 4.2 kWp.' },
   ];
-  const existingItems = (await heorth('GET', '/api/v1/ethel/assets?limit=100', { token })) ?? [];
-  const itemByName = new Map((existingItems.items ?? existingItems).map((i) => [i.name, i]));
-  const itemId = {};
-  for (const it of items) {
+  const existingAssets = (await heorth('GET', '/api/v1/ethel/assets?limit=100', { token })) ?? [];
+  const assetByName = new Map((existingAssets.items ?? existingAssets).map((a) => [a.name, a]));
+  const assetId = {};
+  for (const a of assets) {
     const [rec, verdict] = await ensure(
-      `asset ${it.name}`,
-      async () => itemByName.get(it.name) ?? null,
-      async () => heorth('POST', '/api/v1/ethel/assets', { ...as, body: it })
+      `asset ${a.name}`,
+      async () => assetByName.get(a.name) ?? null,
+      async () => heorth('POST', '/api/v1/ethel/assets', { ...as, body: a })
     );
-    itemId[it.name] = rec.id;
+    assetId[a.name] = rec.id;
     count('ethel', verdict);
   }
 
@@ -426,7 +426,7 @@ async function seedHeorth() {
   const oldTv = 'Panasonic plasma TV';
   const [tv, tvVerdict] = await ensure(
     `asset ${oldTv}`,
-    async () => itemByName.get(oldTv) ?? null,
+    async () => assetByName.get(oldTv) ?? null,
     async () =>
       heorth('POST', '/api/v1/ethel/assets', {
         ...as,
@@ -447,9 +447,9 @@ async function seedHeorth() {
   // keep the tally honest about what a re-run actually changed.
   const [, vehicleVerdict] = await ensure(
     'vehicle details for the Ford Focus',
-    async () => (await heorth('GET', `/api/v1/ethel/assets/${itemId['Ford Focus estate']}`, { token }))?.vehicle ?? null,
+    async () => (await heorth('GET', `/api/v1/ethel/assets/${assetId['Ford Focus estate']}`, { token }))?.vehicle ?? null,
     async () =>
-      heorth('PUT', `/api/v1/ethel/assets/${itemId['Ford Focus estate']}/vehicle`, {
+      heorth('PUT', `/api/v1/ethel/assets/${assetId['Ford Focus estate']}/vehicle`, {
         ...as,
         body: {
           registration: 'YH19 KRV',
@@ -472,9 +472,9 @@ async function seedHeorth() {
   for (const f of facilities) {
     const [, verdict] = await ensure(
       `facility details for the ${f.asset}`,
-      async () => (await heorth('GET', `/api/v1/ethel/assets/${itemId[f.asset]}`, { token }))?.facility ?? null,
+      async () => (await heorth('GET', `/api/v1/ethel/assets/${assetId[f.asset]}`, { token }))?.facility ?? null,
       async () =>
-        heorth('PUT', `/api/v1/ethel/assets/${itemId[f.asset]}/facility`, {
+        heorth('PUT', `/api/v1/ethel/assets/${assetId[f.asset]}/facility`, {
           ...as,
           body: {
             kind: f.kind,
@@ -602,8 +602,8 @@ async function seedHeorth() {
     { payee: 'Council tax', amount: 187.0, cadence: 'monthly', nextDue: day(9), envelope: 'Utilities' },
     { payee: 'Netflix', amount: 12.99, cadence: 'monthly', nextDue: day(18), envelope: 'Subscriptions' },
     { payee: 'Spotify', amount: 17.99, cadence: 'monthly', nextDue: day(29), envelope: 'Subscriptions' },
-    { payee: 'Boiler service plan', amount: 168.0, cadence: 'yearly', nextDue: day(40), envelope: 'Home maintenance', item: 'Vaillant ecoTEC boiler' },
-    { payee: 'Car insurance', amount: 412.0, cadence: 'yearly', nextDue: day(75), envelope: 'Transport', item: 'Ford Focus estate' },
+    { payee: 'Boiler service plan', amount: 168.0, cadence: 'yearly', nextDue: day(40), envelope: 'Home maintenance', asset: 'Vaillant ecoTEC boiler' },
+    { payee: 'Car insurance', amount: 412.0, cadence: 'yearly', nextDue: day(75), envelope: 'Transport', asset: 'Ford Focus estate' },
     { payee: 'Window cleaner', amount: 18.0, cadence: 'quarterly', nextDue: day(21), envelope: 'Home maintenance' },
   ];
   const existingBills = (await heorth('GET', '/api/v1/feoh/bills', { token })) ?? [];
@@ -621,7 +621,7 @@ async function seedHeorth() {
             cadence: b.cadence,
             nextDue: b.nextDue,
             envelopeId: envId[b.envelope] ?? null,
-            ethelAssetId: b.item ? (itemId[b.item] ?? null) : null,
+            ethelAssetId: b.asset ? (assetId[b.asset] ?? null) : null,
           },
         })
     );

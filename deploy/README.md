@@ -48,7 +48,7 @@ deploy/demo-up.sh --fresh    # destroy the demo's data, then rebuild and reseed
 | `heorth` | 4100 |
 | `kithledger` | 4102 |
 | `heorth-mcp` | 4103 |
-| `db` | 55433 |
+| `db` | 55500 |
 
 **Every port is shifted and the cluster is its own volume**
 (`wyrhta-demo_db_data`), so the demo runs alongside the dev stack, the per-repo
