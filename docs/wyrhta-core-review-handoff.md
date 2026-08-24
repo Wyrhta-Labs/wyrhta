@@ -195,8 +195,15 @@ may break, a patch bump is safe.
 - **0.5.0 (minor)** shipped **2026-08-24** (tag `v0.5.0`) carrying 9 plus the
   two shared env helpers. Minor because the inferred type of `JWT_SECRET`
   changes; both consumers moved their pin from `^0.4.0` to `^0.5.0` the same
-  day. Remaining cross-project duplication is catalogued in
+  day. Remaining cross-project duplication was catalogued in
   `docs/plans/core-extraction-candidates.md`.
+- **0.6.0 (minor)** shipped **2026-08-24** (tag `v0.6.0`) carrying all five
+  items of that catalogue: SQLSTATE classification (`./db`), a proxy-safe
+  `trimTrailingSlash` (`./http`), ISO 8601 duration arithmetic (`./lib`),
+  `loadDotEnv` (`./config`), and `assertTestDatabase` on the new
+  `@wyrhta/core/testing` subpath. Additive throughout; minor for the new
+  subpath and module surface. Heorth `b3f035e` and KithLedger `61932ff` moved
+  the same day, each deleting its duplicate copies.
 - The publish pipeline validates `v*` tag == `package.json` version and runs
   typecheck + tests + build first, so the usual flow is: fix commits →
   version bump + CHANGELOG → tag `vX.Y.Z` → CI publishes.
