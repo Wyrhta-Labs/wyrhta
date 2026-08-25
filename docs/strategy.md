@@ -146,6 +146,21 @@ two modules, and the rest of Weorc (the unanchored chores) is Phase 5+.
 as one release; Weorc's first slice gets its own brainstorm and spec afterwards,
 so its routines are designed against an anchor that already exists.
 
+**Weorc's first slice shipped 2026-08-25.** Plan:
+[2026-08-25-weorc-first-slice](superpowers/plans/2026-08-25-weorc-first-slice.md);
+spec:
+[Weorc v1 — Routines, Occurrences and the Projection Engine](superpowers/specs/2026-08-25-weorc-first-slice-design.md).
+Schema, recurrence arithmetic, the three-pass tick engine, `/api/v1/weorc/...`,
+the `weorc.tsx` web page (Heorth) and the `weorc.*` MCP tools (heorth-mcp) are
+in-repo and green. The unanchored case shipped with it, not deferred to
+Phase 5+ — the demo household seeds two unanchored routines (bins, bedding)
+beside two anchored ones (the boiler, the kitchen), which is the acceptance
+check ADR 0015 §4 calls for. What is **not** true yet: this is shipped-in-repo,
+not deployed — no real household runs it, and the demo stack has no task
+provider, so its occurrences stay unprojected (by design, not as a defect).
+Phase 3 deployment is next; per ADR 0015 §5, a second pre-deployment feature
+slice would need its own ADR before starting.
+
 Prerequisite (revised 2026-08-18, ADR 0008): the old "KithLedger's MCP moves
 from stdio to HTTP" item is **dropped**. The transport move happens by the
 `kith.*` tools landing in `heorth-mcp` instead; KithLedger deploys as a satellite
