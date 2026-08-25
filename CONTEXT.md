@@ -43,10 +43,11 @@ _Avoid_: user (reserve "user" for the auth-level account)
 The physical property as a domain (OE *ēðel*, rune ᛟ — immovable wealth, the
 estate; counterpart to Feoh's movable wealth): the building as a tree of
 **Places**, the **Assets** in them (appliances, vehicles), the **Facilities** that
-serve them, and the upkeep *facts* that belong to a thing (manuals, warranty, the
-stated service interval). The recurring work itself is **Weorc**,
-which anchors routines here (ADR 0014); service contacts are KithLedger people
-referenced from a routine.
+serve them, and the upkeep *facts* that belong to a thing (warranty, the stated
+service interval). Manuals and other documents are explicitly out of scope here
+(the Ethel v1 spec) — they stay in Library until the future **Office** module
+exists. The recurring work itself is **Weorc**, which anchors routines here
+(ADR 0014); service contacts are KithLedger people referenced from a routine.
 _Avoid_: The Home, house profile, inventory
 
 **Asset**:
