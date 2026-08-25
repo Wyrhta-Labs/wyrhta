@@ -121,8 +121,8 @@ _Avoid_: chore (as a model name), schedule, plan
 
 **Maintenance Plan**:
 A Weorc Routine anchored to an Ethel asset or place — recurring upkeep of the
-property (interval, completion history, links to manuals held on the asset).
-Still projects due work outward as Tasks in the external task service. Since
+property (interval, completion history). Still projects due work outward as
+Tasks in the external task service. Since
 ADR 0014 the *definition* lives in Weorc; only the thing it maintains is Ethel's.
 Not a separate table or model — same `weorc_routines` row as an unanchored
 Routine, distinguished only by `anchorAssetId`/`anchorPlaceId` being set
