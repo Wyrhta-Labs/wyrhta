@@ -60,9 +60,13 @@ error.
 ## Part A — Data model
 
 Schema lives in `src/modules/weorc/schema.ts` and is registered in **both**
-`src/db/schema/drizzle-schema.ts` (no `.js`) and `src/db/schema/index.js`
-(runtime barrel, `.js`), per the house rule. The migration is generated with
-`npm run db:generate -- --name weorc_v1`; snapshots are never hand-edited.
+`src/db/schema/drizzle-schema.ts` (drizzle-kit; imports without `.js`) and
+`src/db/schema/index.ts` (the runtime barrel, whose re-exports carry the `.js`
+ESM extension), per the house rule. `AGENTS.md` calls the second one
+`index.js` — that is the import specifier, not the filename.
+
+The migration is generated with `npm run db:generate -- --name weorc_v1`;
+snapshots are never hand-edited.
 
 Per ADR 0015's corollary, this lands on an empty database and may be a plain
 create — no preservation procedure, no rehearsal on a dump.
@@ -146,8 +150,21 @@ the history is the thing worth keeping.
 A pure module, `src/modules/weorc/recurrence.ts`, with no database access, so the
 awkward cases are unit-testable without a Postgres round-trip.
 
-`today` comes from `localTodayIso()`. **Never** derive it from `toISOString()` —
-that yields the UTC date and misclassifies anything near local midnight.
+### Which "today", and in whose zone
+
+**`today` is the household's calendar date, not the server's.** It is
+`localDateOf(new Date(), await getHouseholdTimeZone())` — `src/lib/local-date.ts`
+and `src/household/timezone.ts`, the same pair the M365 task provider already
+uses. **Never** `toISOString()` (that is UTC), and **not** `localTodayIso()`
+either: that helper is *server*-local, which is only accidentally the household's
+zone and is wrong the moment Heorth runs on a UTC host.
+
+Everywhere the spec says "household-local midnight of `dueOn`", the implementation
+is `zonedMidnightUtc(dueOn, zone)` from the same module — it is DST-correct,
+including the spring-forward day where local midnight does not exist.
+
+A routine's dates are therefore stable under a server move and shift only if the
+household itself changes zone, which is the correct behaviour.
 
 ### Next due date
 
@@ -158,15 +175,32 @@ Given a routine and its last **terminal** occurrence (completed or skipped):
   `skipped`), plus `intervalCount` units. With no terminal occurrence ever, the
   next due date is `anchorDate`.
 - **`fixed`** — the next grid slot `anchorDate + k × interval` strictly after the
-  last terminal occurrence's `dueOn`; with none ever, `anchorDate` itself.
-  **Then: if that slot is more than one full interval in the past, fast-forward
-  to the latest slot ≤ today.** Three weeks away yields one overdue bins chore,
-  never a backlog of three.
+  last terminal occurrence's `dueOn`; with none ever, `anchorDate` itself. Then
+  fast-forward, by exactly this rule:
 
-**Month arithmetic clamps to the end of the month.** 31 January + 1 month is
-28 February (29 in a leap year), and the following step returns to the 31st where
-the month allows — the grid origin stays the source of truth rather than drifting
-down to the 28th permanently.
+  ```
+  while (slot + interval <= today) slot += interval
+  ```
+
+  The loop leaves the latest slot whose *successor* is still in the future — so
+  the routine is at most one interval overdue and never accumulates a backlog.
+  Worked: weekly, last terminal `dueOn` 2026-08-11, today 2026-08-25. The first
+  slot after history is 08-18; `08-18 + 7d = 08-25 <= today`, so it advances to
+  08-25; `09-01 > today`, so it stops. One chore, due today — not one on the 18th
+  that immediately breeds another on the 25th.
+
+### Month arithmetic
+
+The two modes clamp differently, and conflating them is the easy mistake:
+
+- **`fixed` monthly** slots are always `anchorDate + k months`, each computed
+  from the **origin** and clamped into its own month. Origin 31 January gives
+  28 February (29 in a leap year) and then 31 March — the grid does not drift
+  down to the 28th permanently, because no slot is ever computed from the
+  previous slot.
+- **`from_completion` monthly** intervals take the terminal date as a **new
+  origin** each cycle and therefore *do* drift, by design: completed 28 February
+  means next due 28 March. What it recurs from is when you last did it.
 
 ### The materialisation horizon
 
@@ -199,12 +233,24 @@ For each `due` occurrence carrying a task link, read `task_mirror` by
 `(feedKey, externalId)`:
 
 - mirror row `completed` → complete the occurrence at the mirror's `completedAt`;
-- mirror row absent (deleted upstream) → clear the link, so pass 3 re-projects;
 - otherwise → leave it.
 
 Reconciliation is a **mirror query, not provider work**. The task sync runner
 already writes completions into `task_mirror`; Weorc reads what is there and
 never calls Graph to find out.
+
+**An absent mirror row does NOT mean the task was deleted, and must never
+trigger a re-projection.** Mirror rows are deleted wholesale for reasons that
+have nothing to do with the task: `setAllowlist` drops every row of a
+de-allowlisted feed (`tasks/store.ts`), and a full resync deletes and re-inserts
+a feed inside one transaction. Treating absence as deletion means a member
+un-ticking a To Do list silently spawns a duplicate external task for every
+projected occurrence at once.
+
+So: absence leaves the link **and the occurrence** exactly as they are. The
+occurrence stays open, is still completable from Weorc's own side, and is simply
+no longer tracked against a live mirror row. Re-projection happens only through
+the explicit relink in pass 3.
 
 ### 2. Materialise
 
@@ -217,11 +263,26 @@ concurrent double-tick a no-op rather than a duplicate.
 For each open occurrence with no task link, **when a provider is installed**:
 
 - `title` = the routine's name;
-- `notes` = the anchor's name (asset or place) and the routine's notes, when either exists;
-- `dueAt` = household-local midnight of `dueOn`, matching `MirroredTask.dueAt`'s
-  stated semantics;
+- `notes` = the anchor's name (asset or place), the routine's notes when either
+  exists, and — on its own last line — the marker `weorc-occurrence:<occurrence
+  uuid>`;
+- `dueAt` = `zonedMidnightUtc(dueOn, householdZone)`, matching
+  `MirroredTask.dueAt`'s stated semantics;
 - the shared feed is resolved **preferring `ownerMemberId`** when the routine
   names one.
+
+**Relink before creating.** Projection first looks for a mirror row whose notes
+carry this occurrence's marker; if one exists, it adopts that row's
+`(feedKey, externalId)` instead of creating anything. Without this, the window
+between "Graph accepted the create" and "Weorc stored the link" is a duplicate
+factory: a crash, a restart or a request timeout in that window leaves a real
+To Do task with nothing pointing at it, and the next tick makes a second one.
+The marker is also what lets a task the household moved between lists be found
+again after a full resync.
+
+The marker is deliberately ugly and deliberately in the body: To Do has no custom
+metadata field the provider contract exposes, and inventing one would mean a
+Graph type crossing into the tasks module, which `AGENTS.md` forbids.
 
 On success, store `(feedKey, externalId)` and clear `projectionError`. On
 `TaskProviderError`, store `reason` in `projectionError` and continue to the next
@@ -229,10 +290,19 @@ occurrence — one dead connection never stops the pass. **A provider that is
 absent is not an error and writes no `projectionError`:** the occurrence is
 simply unprojected, which is the demo stack's permanent and correct state.
 
+### Concurrency
+
+The scheduler tick and a REST write can both try to materialise the same
+successor. The unique constraints stop a duplicate **row**, but a bare `INSERT`
+would still turn the loser into a 500. **Every materialising insert is
+`ON CONFLICT DO NOTHING`**, and re-reads the winning row. Any DB error that does
+survive is classified through `pgErrorCode` / `isPgError` — never by reading
+`e.code`, which is `undefined` on a `DrizzleQueryError`.
+
 ### Completing from Weorc's own side
 
 `POST /occurrences/:id/complete` (web, MCP) records the completion locally
-**first**, then writes back through `tasks.completeTask` when a link exists, then
+**first**, then writes back through the provider when a link exists, then
 materialises and projects the successor so the caller sees the new due date in
 the same response.
 
@@ -257,32 +327,56 @@ made. Responses use `ok`/`err` from `@wyrhta/core/http`.
 | `GET /routines` | Filters `active`, `anchor_asset_id`, `anchor_place_id`, `owner_member_id`, plus `limit` / `offset` as Ethel's list does. Each row carries its computed `nextDueOn` and its open occurrence, so one call feeds the page. `{ data, meta: { total, limit, offset } }`. |
 | `POST /routines` | 201. `400 ANCHOR_CONFLICT` (both anchors given), `400 ASSET_NOT_FOUND`, `400 PLACE_NOT_FOUND`, `400 VALIDATION_ERROR`. |
 | `GET /routines/:id` | Routine + open occurrence + recent history. `404 NOT_FOUND`. |
-| `PATCH /routines/:id` | Includes `active`. Changing `mode`, the interval or `anchorDate` recomputes the **open** occurrence's `dueOn` in place; terminal occurrences are never rewritten. Same four codes plus `404`. |
+| `PATCH /routines/:id` | Includes `active`. Terminal occurrences are never rewritten. Changing `mode`, the interval or `anchorDate` recomputes the open occurrence's `dueOn` in place **only while that occurrence is unprojected**; once it carries a task link the edit applies from the *next* occurrence onward and the open one is left alone (see below). Same four codes plus `404`. |
 | `DELETE /routines/:id` | `409 ROUTINE_HAS_HISTORY`, `404 NOT_FOUND`; otherwise cascades the single open occurrence. |
-| `GET /occurrences` | Filters `status`, `routine_id`, `due_to`. The due-work read. |
+| `GET /occurrences` | Filters `status`, `routine_id`, `due_to`. The due-work read. **`due_to` is how a caller asks for "actually due now" (`due_to=<today>`) as opposed to everything open**, which within a lead window includes work due up to `leadDays` from now. |
 | `POST /occurrences/:id/complete` | Body `completedAt?`, `note?`. `409 ALREADY_TERMINAL`, `404 NOT_FOUND`. Returns the completed occurrence, the newly materialised successor (or null, outside the horizon), and the `projection` outcome. |
 | `POST /occurrences/:id/skip` | Body `note?`. Same codes. Records that a slot passed **without claiming it was done**, so the history does not lie. |
 | `POST /run` | One tick, returning per-pass counts. The deterministic driver for tests and the demo, exactly as `POST /api/v1/m365/sync` is for sync. |
 
 Query keys are snake_case on the wire, as the tasks module's already are.
 
+### Editing a routine that is already projected
+
+An open occurrence carrying a task link has a counterpart in Microsoft To Do,
+and the `TaskProvider` contract has **no update method** — only
+`createTask`, `setCompleted` and the pull/discovery pair. Recomputing `dueOn`
+locally would therefore leave the household looking at a To Do task with the old
+date and no indication it had moved.
+
+This slice resolves that by **not editing a projected occurrence at all**: the
+change takes effect from the next cycle. The response says so explicitly
+(`openOccurrenceUnchanged: true`) so the web page can tell the maker rather than
+appearing to ignore the edit. Someone who wants the change now completes or skips
+the open occurrence, and the successor is materialised under the new definition.
+
+Adding `updateTask` to the provider contract is the alternative, and it is
+deliberately not taken here: it is a new method on a shared interface, a second
+Graph write path and a new class of partial-failure, for an edit that is rare on
+a routine that recurs. It is the obvious Phase 5+ follow-up if real use disagrees.
+
 ---
 
 ## Part E — Supporting changes
 
-Two small changes this slice forces. Both are in Heorth, both belong in the same
-commit range.
+Two additions to `tasks/service.ts`. Both are in Heorth and belong in the same
+commit range. **Nothing moves out of feoh** — `localTodayIso()` stays exactly
+where it is, because Weorc does not want a server-local date at all (Part B).
 
-1. **`localTodayIso()` moves from `src/modules/feoh/dates.ts` to
-   `src/lib/dates.ts`**, with `feoh/item-costs.ts` and `feoh/ledger.ts` updated to
-   import it from there. Weorc must not import feoh to learn what day it is, and
-   `AGENTS.md` forbids deriving a server-local date any other way. Two call sites
-   move; the function is unchanged.
-2. **`tasks/service.ts` gains a household-level create** that takes a *preferred*
-   member id rather than an acting principal, and skips the maintenance-admin
-   assertion because a 3am ticker has no acting principal. `createTask` keeps its
-   current signature and delegates to it. The shared-feed resolution logic is not
-   duplicated.
+1. **A household-level create** that takes a *preferred* member id rather than an
+   acting principal, and skips the maintenance-admin assertion because a 3am
+   ticker has no acting principal. `createTask` keeps its current signature and
+   delegates to it, so the shared-feed resolution is not duplicated.
+2. **A completion helper keyed on `(feedKey, externalId)`.** The existing
+   `tasks.completeTask` takes a `task_mirror.id` and looks the row up by uuid —
+   which is precisely the identifier Part A refuses to store, because a full
+   resync invalidates it. Weorc therefore needs
+   `completeProjectedTask(feedKey, externalId, completed)`, which calls the
+   provider by the stable key and updates the mirror row **if one is currently
+   present**. `completeTask` is left untouched; the two share the provider call.
+
+Without the second one, the write-back in Part C cannot be implemented as
+described — it is not a convenience.
 
 ### A module rule to write down
 
@@ -300,9 +394,13 @@ or the next reader applies Ethel's rule here and is wrong.
 
 `Heorth/web/src/pages/weorc.tsx`, beside `ethel.tsx`, following its structure.
 
-- **Due now**, at the top: the open occurrences, each with tick and skip. This is
-  the only place the demo household can see a chore at all, since there is no
-  provider there.
+- **Due now**, at the top: open occurrences with `dueOn <= today`, each with tick
+  and skip. This is the only place the demo household can see a chore at all,
+  since there is no provider there.
+- **Coming up**, below it: open occurrences with `dueOn > today` — the lead
+  window. A boiler service materialised a fortnight early is *not* due today and
+  must not be shown as though it were; it is listed so the maker knows a task has
+  gone out to To Do.
 - **Routines** below: create, edit, deactivate. The anchor picker reads Ethel's
   assets and places.
 - **History** per routine: terminal occurrences, newest first.
@@ -381,9 +479,18 @@ a database ending in `_test`.
   `TaskProviderError` (reason recorded, pass continues, next tick retries).
   **No test calls a real external service.**
 - **Reconciliation**: a completion appearing in `task_mirror` completes the
-  occurrence and materialises the successor in one tick; a vanished mirror row
-  clears the link and re-projects.
-- **The partial unique index**: a double tick inserts one occurrence.
+  occurrence and materialises the successor in one tick. **And the inverse, which
+  is the one that bites**: a vanished mirror row (de-allowlisted feed) changes
+  nothing and creates no second task.
+- **Projection idempotence**: a mirror row already carrying an occurrence's
+  marker is adopted, not duplicated — the crash-window case.
+- **The partial unique index**: a double tick inserts one occurrence and neither
+  writer errors (`ON CONFLICT DO NOTHING`).
+- **Editing a projected routine** leaves the open occurrence's `dueOn` alone and
+  says so in the response; editing an unprojected one moves it.
+- **Household zone**: with `TZ` set to something other than the household zone,
+  `today` and `dueAt` still resolve to the household's day — the test that would
+  have caught the `localTodayIso()` mistake.
 - **Route tests** for every code in Part D, including `ROUTINE_HAS_HISTORY` and
   `ANCHOR_CONFLICT`.
 - **A test that a completion survives a failing provider** — the divergence in
@@ -398,6 +505,12 @@ a database ending in `_test`.
   so plainly: this is the one domain being built with no real-use evidence, by one
   maker. The mitigation is that a routine is cheap to delete and the recurrence
   model is two integers and an enum — being wrong costs a row, not a migration.
+- **Turning M365 on later projects a backlog in one tick.** Every routine that
+  has been running unprojected has an open occurrence, and the first tick after
+  the integration is enabled creates a task for each. That is bounded by the
+  number of routines, not by elapsed time — the one-open-occurrence index is what
+  makes it a handful of tasks rather than a year of them — so it is accepted as
+  correct rather than throttled.
 - **The unprojected state is untested by reality.** Every household that runs this
   before Phase 3 has an empty provider seam, so the *projecting* half of the engine
   ships exercised only by fakes. First bring-up is where it is really tested, and
