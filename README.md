@@ -16,6 +16,7 @@ service exists.
 - **Decisions:** [`docs/decisions/`](docs/decisions/)
 - **Glossary:** [`CONTEXT.md`](CONTEXT.md)
 - **The stack:** [`deploy/`](deploy/)
+- **Local dev/demo environments:** [`docs/local-environments.md`](docs/local-environments.md)
 
 > **Naming.** *Wyrhta* (OE *wyrhta*, "maker, wright") is the ecosystem and this repo.
 > *Wyrhta-Labs* is only the GitHub organisation that hosts it, and `ghcr.io/wyrhta-labs`
@@ -111,7 +112,9 @@ docker compose -f deploy/compose.dev.yml --env-file deploy/.env up -d --build
 ```
 
 See [`deploy/README.md`](deploy/README.md) for ports, databases, backups, and the
-production file.
+production file. For the two local multi-service environments, see
+[`docs/local-environments.md`](docs/local-environments.md): dev uses
+`14000/14002/14003/15432`, and demo uses `24000/24002/24003/25432`.
 
 ## Agent skills
 

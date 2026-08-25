@@ -2,6 +2,8 @@
 
 Three independent Compose files over a Postgres 18 cluster.
 Design rationale: [`../docs/plans/household-stack-compose.md`](../docs/plans/household-stack-compose.md).
+User/developer guide for local dev and demo:
+[`../docs/local-environments.md`](../docs/local-environments.md).
 
 | File | Use | Services from |
 |---|---|---|

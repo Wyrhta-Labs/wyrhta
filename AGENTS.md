@@ -39,6 +39,35 @@ should contain only discovery stubs that point back to the canonical copy.
   that call its API. The MCP code embedded in `Heorth`, `KithLedger`, and
   `wyrhta-core` is being migrated out; see `heorth-mcp/docs/spec/`.
 
+## Local environments for agents
+
+Use the repo-local skills before operating the shared local stacks:
+
+- **Dev stack:** read `.agents/skills/wyrhta-dev-env/SKILL.md`; use
+  `deploy/compose.dev.yml` with `deploy/.env`. It builds sibling checkouts and
+  runs real local dev data on `heorth_dev` / `kithledger_dev`.
+- **Demo stack:** read `.agents/skills/wyrhta-demo/SKILL.md`; use
+  `deploy/compose.demo.yml` and `deploy/demo-up.sh` where possible. It is an
+  isolated, throwaway, seeded household and must not reach real external systems.
+
+Never substitute the per-service `Heorth/docker-compose.yml` or
+`KithLedger/docker-compose.yml` when the user asks for the Wyrhta dev or demo
+environment. The shared stack ports are:
+
+| Service | Dev | Demo |
+|---|---:|---:|
+| Heorth | 14000 | 24000 |
+| Reserved Feoh slot | 14001 | 24001 |
+| KithLedger | 14002 | 24002 |
+| heorth-mcp | 14003 | 24003 |
+| Postgres | 15432 | 25432 |
+
+Container-internal ports stay conventional (`3000`, `3200`, `5432`). Tests must
+use `_test` databases, never the dev databases. `deploy/.env` and
+`deploy/.env.demo` are ignored secret files: do not commit them and do not paste
+their contents. Demo scripts may read login values from `.env.demo`, but bearer
+tokens are process-local only and must not be saved.
+
 ## Working mode for this repo (IMPORTANT)
 
 - **This repo's own content is docs.** Work *on this repo* produces docs under

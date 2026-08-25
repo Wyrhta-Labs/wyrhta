@@ -26,6 +26,8 @@ _(`website` — the public site. Content reaches it one way, via the transfer do
 - `plans/` — concept plans for upcoming phases, executed in the service repos.
 - [`execution-log.md`](execution-log.md) — the cross-repo record of what was actually
   built per phase: commit ranges, tags, adjudicated deviations, deferred findings.
+- [`local-environments.md`](local-environments.md) — how to run the shared local
+  dev stack and the isolated seeded demo stack.
 - [`../CONTEXT.md`](../CONTEXT.md) — the cross-service glossary.
 
 > Some documents here cite `manual-todo.md` — the operator's log of steps that
