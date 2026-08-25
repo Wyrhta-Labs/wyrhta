@@ -487,6 +487,62 @@ async function seedHeorth() {
     count('facility details', verdict);
   }
 
+  // --- weorc: routines -------------------------------------------------------
+  // ADR 0015 §4 makes the seeded demo household this slice's acceptance check,
+  // so the seed must show the ANCHORED and UNANCHORED cases side by side: that
+  // one-kind-of-row claim is the whole bet of ADR 0014. anchorDate is the fixed
+  // grid origin ('fixed' mode) or the first due date ('from_completion' mode) -
+  // see Heorth's src/modules/weorc/recurrence.ts.
+  const routines = [
+    { name: 'Put the bins out', mode: 'fixed', intervalUnit: 'week', intervalCount: 1, leadDays: 0, anchorDate: day(0) },
+    { name: 'Change the bedding', mode: 'fixed', intervalUnit: 'week', intervalCount: 2, leadDays: 0, anchorDate: day(0) },
+    { name: 'Service the boiler', mode: 'from_completion', intervalUnit: 'month', intervalCount: 12, leadDays: 14, anchorDate: day(10), anchorAssetId: assetId['Vaillant ecoTEC boiler'] },
+    { name: 'Descale the kettle', mode: 'from_completion', intervalUnit: 'month', intervalCount: 2, leadDays: 0, anchorDate: day(0), anchorPlaceId: placeId['Kitchen'] },
+  ];
+  const existingRoutines = (await heorth('GET', '/api/v1/weorc/routines', { token })) ?? [];
+  const routineByName = new Map(existingRoutines.map((r) => [r.name, r]));
+  const routineId = {};
+  for (const r of routines) {
+    const [rec, verdict] = await ensure(
+      `routine ${r.name}`,
+      async () => routineByName.get(r.name) ?? null,
+      async () =>
+        heorth('POST', '/api/v1/weorc/routines', {
+          ...as,
+          body: {
+            name: r.name,
+            mode: r.mode,
+            intervalUnit: r.intervalUnit,
+            intervalCount: r.intervalCount,
+            anchorDate: r.anchorDate,
+            leadDays: r.leadDays,
+            anchorAssetId: r.anchorAssetId ?? null,
+            anchorPlaceId: r.anchorPlaceId ?? null,
+          },
+        })
+    );
+    routineId[r.name] = rec.id;
+    count('weorc routines', verdict);
+  }
+
+  // Materialise occurrences (no task provider in the demo stack, so they stay
+  // unprojected - projectionError null is the normal state, not an error).
+  await heorth('POST', '/api/v1/weorc/run', { ...as, body: {} });
+
+  // Complete one bins occurrence so the history is not empty on first look.
+  const dueBins = (
+    await heorth('GET', `/api/v1/weorc/occurrences?status=due&routine_id=${routineId['Put the bins out']}`, { token })
+  ) ?? [];
+  const completedBins = (
+    await heorth('GET', `/api/v1/weorc/occurrences?status=completed&routine_id=${routineId['Put the bins out']}`, { token })
+  ) ?? [];
+  const [, binsVerdict] = await ensure(
+    'completed bins occurrence',
+    async () => (completedBins.length > 0 ? {} : null),
+    async () => heorth('POST', `/api/v1/weorc/occurrences/${dueBins[0].id}/complete`, { ...as, body: {} })
+  );
+  count('weorc completions', binsVerdict);
+
   // --- finance (Feoh, ADR 0007 — always on) --------------------------------
   const accounts = [
     { name: 'Joint current account', kind: 'asset', openingBalance: 4200 },

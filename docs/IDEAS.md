@@ -57,7 +57,7 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
 <!-- - **<title>** → [`plans/<file>.md`](plans/<file>.md) · YYYY-MM-DD -->
 
 - **A name for chores** →
-  [ADR 0014](decisions/0014-weorc-owns-recurring-household-work.md) (proposed) ·
+  [ADR 0014](decisions/0014-weorc-owns-recurring-household-work.md) (accepted) ·
   2026-08-24 — the domain is **Weorc** (OE *weorc*, work/labour; **no rune** —
   *Dægweorc* ᛞ and *Nyd* ᚾ considered and rejected), a **peer of Ethel, not a
   feature of it**: Ethel keeps assets, places and the upkeep facts of a thing;
@@ -68,8 +68,14 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
   slice**. "Chore" stops being an avoided word and becomes the gloss; kids'-chore
   mechanics (points, allowances, rotation) stay out of scope. Also in
   [`strategy.md`](strategy.md) (Phase 4, Phase 5+, Out of scope) and
-  [`../CONTEXT.md`](../CONTEXT.md) (Weorc, Routine, Maintenance Plan, Ethel,
-  Task). No `plans/` doc and no code yet.
+  [`../CONTEXT.md`](../CONTEXT.md) (Weorc, Routine, Maintenance Plan, Occurrence,
+  Ethel, Task). **Shipped 2026-08-25** as Weorc's first slice: plan
+  [`plans/2026-08-25-weorc-first-slice.md`](superpowers/plans/2026-08-25-weorc-first-slice.md),
+  spec
+  [`specs/2026-08-25-weorc-first-slice-design.md`](superpowers/specs/2026-08-25-weorc-first-slice-design.md),
+  schema/engine/REST API/web page in Heorth and `weorc.*` tools in heorth-mcp,
+  all in-repo and green, seeded into the demo household with both the anchored
+  and unanchored cases side by side. Not yet deployed to a real household.
 
 - **Defer server-side LLM features; run a conservative DB first** →
   [ADR 0006](decisions/0006-no-server-side-generative-inference-and-a-conservative-base-db.md)

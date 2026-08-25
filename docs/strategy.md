@@ -140,11 +140,28 @@ upkeep facts that belong to a thing; the recurring definition, its completion
 history and the projection into the task provider live in the new **Weorc**
 module, anchored to an Ethel asset or place. Service contacts (slice D) hang off
 Weorc routines. Nothing about the Phase 4 delivery changes — the phase now ships
-two modules, and the rest of Weorc (the unanchored chores) is Phase 5+.
+two modules, unanchored routines included: ADR 0014's bet that an anchored and
+an unanchored Routine are the same kind of row is exactly what Weorc's first
+slice ships to prove, not something deferred to Phase 5+.
 
 **Delivery order inside the phase (2026-08-24):** Ethel v1 Parts A–C ship first
 as one release; Weorc's first slice gets its own brainstorm and spec afterwards,
 so its routines are designed against an anchor that already exists.
+
+**Weorc's first slice shipped 2026-08-25.** Plan:
+[2026-08-25-weorc-first-slice](superpowers/plans/2026-08-25-weorc-first-slice.md);
+spec:
+[Weorc v1 — Routines, Occurrences and the Projection Engine](superpowers/specs/2026-08-25-weorc-first-slice-design.md).
+Schema, recurrence arithmetic, the three-pass tick engine, `/api/v1/weorc/...`,
+the `weorc.tsx` web page (Heorth) and the `weorc.*` MCP tools (heorth-mcp) are
+in-repo and green. The unanchored case shipped with it, not deferred to
+Phase 5+ — the demo household seeds two unanchored routines (bins, bedding)
+beside two anchored ones (the boiler, the kitchen), which is the acceptance
+check ADR 0015 §4 calls for. What is **not** true yet: this is shipped-in-repo,
+not deployed — no real household runs it, and the demo stack has no task
+provider, so its occurrences stay unprojected (by design, not as a defect).
+Phase 3 deployment is next; per ADR 0015 §5, a second pre-deployment feature
+slice would need its own ADR before starting.
 
 Prerequisite (revised 2026-08-18, ADR 0008): the old "KithLedger's MCP moves
 from stdio to HTTP" item is **dropped**. The transport move happens by the
@@ -157,14 +174,15 @@ Unordered until Phase 3 learnings land:
 
 - Feoh module growth (in Heorth, ADR 0007): checking accounts for daily
   life, investments, retirement projection strategies.
-- **Weorc** module growth (OE *weorc* — work, labour; ADR 0014): the household's
-  own recurring work beyond property upkeep — bins, laundry, cleaning, watering,
-  bedding — as **Routines** with no anchor, next to the asset-anchored Maintenance
-  Plans that shipped in Phase 4. One projection engine into the task provider for
-  the whole household; per-member owner at most, and explicitly **no** points,
-  allowances or rotation mechanics (see Out of scope). Sequenced after Phase 3
-  because which chores a household actually wants projected is exactly the kind of
-  thing real use reprioritises.
+- **Weorc** module growth (OE *weorc* — work, labour; ADR 0014): further growth
+  of the domain beyond what Phase 4's first slice already shipped (anchored
+  *and* unanchored **Routines**, their completion history, and the one
+  projection engine into the task provider) — more routine kinds and whatever
+  real household use asks for, plus Wyrtgeard's planting calendar reusing the
+  same projection engine rather than growing a second one. Still explicitly
+  **no** points, allowances or rotation mechanics (see Out of scope). Sequenced
+  after Phase 3 because which further chores a household actually wants
+  projected is exactly the kind of thing real use reprioritises.
 - **Wyrtgeard** module (OE "plant-yard" — the Garden): a household **plant
   library** (what's growing, where, care notes) plus **Ger** (futhorc ᛄ,
   "harvest") — the grow-your-own-food subfeature: planting-calendar planning,
