@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wyrhta Demo"
+  short_description: "Run and seed the Wyrhta demo stack"
+  default_prompt: "Use $wyrhta-demo to start the local Wyrhta demo household with sample data."

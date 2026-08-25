@@ -19,9 +19,10 @@ counts, and both were observed rather than theorised:
   the reseed step (`--fresh`) would destroy the volume both share. The
   `*_dev` naming exists precisely because dev data has already been wiped
   once by a stray test run (`docs/manual-todo.md`).
-- **It cannot start next to what is already running.** `compose.dev.yml`
-  publishes 5432, and on the authoring host that port belonged to an unrelated
-  project's Postgres. The per-repo stacks collide the same way on 4000/4002 —
+- **It cannot start next to what is already running.** The original
+  `compose.dev.yml` published 5432, and on the authoring host that port belonged
+  to an unrelated project's Postgres. The per-repo stacks collide the same way on
+  the low service ports —
   the "cannot run at the same time" gotcha in `deploy/README.md`. A demo you
   must shut other things down to see is a demo nobody runs.
 
@@ -37,9 +38,13 @@ isolated throwaway household, driven by one script.**
 
 1. **Isolated by construction, not by discipline.** Own project name
    (`wyrhta-demo`), own volume (`wyrhta-demo_db_data`), and every published port
-   shifted — 4100 / 4102 / 4103 / 55433. It runs alongside the dev stack, the
-   per-repo stacks, and any unrelated Postgres on 5432. It is the one stack here
-   without the simultaneity gotcha. It uses the *primary* database names
+   shifted. As of 2026-08-25 the demo uses the safe high range
+   **24000 / 24002 / 24003 / 25432**; dev uses
+   **14000 / 14002 / 14003 / 15432**. The `*001` slot remains reserved for the
+   retired Feoh satellite, keeping the allocation readable. It runs alongside
+   the dev stack, the per-repo stacks, and any unrelated Postgres on 5432. It is
+   the one stack here without the simultaneity gotcha. It uses the *primary*
+   database names
    (`heorth`, `kithledger`) inside its own cluster, which is safe precisely
    because the cluster is separate and off the default port.
 2. **It cannot reach an external system.** The six `M365_*` vars and the

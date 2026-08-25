@@ -19,8 +19,11 @@ This root folder is a container. Each subfolder is its **own independent git rep
 | `website/` | `Wyrhta-Labs/website` | Public site. **Do not edit site code from here** — the only permitted write is the content-transfer file (see below) |
 
 This repo (`Wyrhta-Labs/wyrhta`) tracks only: this `AGENTS.md` (plus the
-`CLAUDE.md` pointer to it), `.claude/`, and `docs/` (the concept + architecture
-decision records).
+`CLAUDE.md` pointer to it), `.claude/`, `.agents/`, `.codex/`, `.opencode/`,
+`docs/` (the concept + architecture decision records), and `deploy/`.
+The agent-specific folders hold repo-local skill/pointer material; the canonical
+skill copy lives under `.agents/skills/`, while runtime-specific skill directories
+should contain only discovery stubs that point back to the canonical copy.
 
 ## How the services connect
 

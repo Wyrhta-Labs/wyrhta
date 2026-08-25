@@ -113,6 +113,23 @@ docker compose -f deploy/compose.dev.yml --env-file deploy/.env up -d --build
 See [`deploy/README.md`](deploy/README.md) for ports, databases, backups, and the
 production file.
 
+## Agent skills
+
+This repo carries repo-local skills for common Wyrhta operations. The canonical
+copies live in [`.agents/skills/`](.agents/skills/); agent-specific directories
+only contain discovery stubs that point back there, so the instructions do not
+drift between tools.
+
+| Skill | Use |
+|---|---|
+| [`wyrhta-dev-env`](.agents/skills/wyrhta-dev-env/SKILL.md) | Start, inspect, stop, and troubleshoot the local dev stack (`deploy/compose.dev.yml`) on ports 14000/14002/14003 |
+| [`wyrhta-demo`](.agents/skills/wyrhta-demo/SKILL.md) | Start, reseed, reset, and verify the throwaway seeded demo (`deploy/compose.demo.yml`) on ports 24000/24002/24003 |
+
+Runtime discovery stubs are tracked under [`.codex/skills/`](.codex/skills/),
+[`.claude/skills/`](.claude/skills/), and [`.opencode/skills/`](.opencode/skills/).
+When changing a skill, edit the canonical `.agents/skills/<name>/SKILL.md` file
+first; update only stub frontmatter when the trigger text needs to change.
+
 ### Why not submodules?
 
 A submodule pins a specific commit of each service in this repo's tree, which is

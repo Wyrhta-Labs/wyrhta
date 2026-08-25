@@ -16,8 +16,9 @@
 #      databases, on the shared wyrhta-dev_db_data volume. A demo seed must
 #      never land there. This stack owns its own volume and is destroyed with
 #      `docker compose -f deploy/compose.demo.yml down -v`.
-#   2. Every published port is shifted, so the demo can run alongside the dev
-#      stack, the per-repo stacks, and any unrelated Postgres on 5432.
+#   2. Every published port is shifted into the 24xxx/25432 range, so the demo
+#      can run alongside the dev stack, the per-repo stacks, and any unrelated
+#      Postgres on 5432.
 #
 # NOTHING HERE REACHES A REAL EXTERNAL SYSTEM. The six M365_* vars are blank
 # (all-or-nothing: all blank = integration disabled), the KITH_* reminders-feed
@@ -44,13 +45,11 @@ services:
       # STOP PERSISTING DATA.
       - db_data:/var/lib/postgresql
       - ./initdb:/docker-entrypoint-initdb.d:ro
-    # 55500, not 5432: the demo must not fight the dev stack or any unrelated
-    # cluster for the default port. Not 55433 either, which this line used to
-    # say - on Windows hosts that falls inside Hyper-V's dynamic excluded port
-    # range (observed 55353-55452 on 2026-08-25), where the bind is refused
-    # before any container starts. Any high port outside that range does.
+    # 25432, not 5432: the demo must not fight the dev stack or any unrelated
+    # cluster for the default port. Not 55433 either, which used to fall inside
+    # Hyper-V's dynamic excluded port range on this Windows host.
     ports:
-      - "55500:5432"
+      - "25432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
       interval: 5s
@@ -63,8 +62,8 @@ services:
     environment:
       # The demo uses the PRIMARY database inside its own throwaway cluster.
       # That is safe here precisely because the cluster is isolated: it is on
-      # its own volume and published on 55500, so no test suite pointing at
-      # localhost:5432 can reach it.
+      # its own volume and published on 25432, so no test suite pointing at
+      # localhost:15432 can reach it.
       DATABASE_URL: postgres://kithledger:${KITH_DB_PASSWORD:?}@db:5432/kithledger
       JWT_SECRET: ${KITH_JWT_SECRET:?set it in deploy/.env.demo}
       ADMIN_PASSWORD: ${KITH_ADMIN_PASSWORD:?set it in deploy/.env.demo}
@@ -80,7 +79,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "4102:3000"
+      - "24002:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -127,7 +126,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "4100:3000"
+      - "24000:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -153,7 +152,7 @@ services:
       kithledger:
         condition: service_healthy
     ports:
-      - "4103:3200"
+      - "24003:3200"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3200/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

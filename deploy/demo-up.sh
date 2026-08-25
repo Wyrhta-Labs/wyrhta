@@ -107,8 +107,8 @@ fi
 
 echo "==> seeding sample data"
 set -a; . "$env_file"; set +a
-HEORTH_URL=http://localhost:4100 \
-KITH_URL=http://localhost:4102 \
+HEORTH_URL=http://localhost:24000 \
+KITH_URL=http://localhost:24002 \
 node "$here/seed-demo.mjs"
 
 # The member roster is READ BACK FROM HEORTH rather than repeated here, so this
@@ -116,7 +116,7 @@ node "$here/seed-demo.mjs"
 # by hand afterwards). The maintenance admin is filtered out by its handle: it is
 # not a household member and logging in as it shows an empty household.
 members="$(
-  HEORTH_URL=http://localhost:4100 node -e '
+  HEORTH_URL=http://localhost:24000 node -e '
     const base = process.env.HEORTH_URL;
     const body = { email: process.env.HEORTH_ADMIN_EMAIL, password: process.env.HEORTH_ADMIN_PASSWORD };
     const post = (p, b, t) => fetch(base + p, {
@@ -145,10 +145,10 @@ cat <<EOF
 
 ==> demo household is up
 
-  Heorth        http://localhost:4100     (web UI + REST at /api/v1)
-  KithLedger    http://localhost:4102     (REST at /api/v1)
-  heorth-mcp    http://localhost:4103     (MCP over Streamable HTTP)
-  Postgres      localhost:55500           (user postgres)
+  Heorth        http://localhost:24000    (web UI + REST at /api/v1)
+  KithLedger    http://localhost:24002    (REST at /api/v1)
+  heorth-mcp    http://localhost:24003    (MCP over Streamable HTTP)
+  Postgres      localhost:25432           (user postgres)
 
   LOG IN AS A MEMBER — every one of these has the password: $DEMO_MEMBER_PASSWORD
 

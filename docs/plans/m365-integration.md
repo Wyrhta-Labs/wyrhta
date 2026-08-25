@@ -38,7 +38,7 @@ local `.env` (dev — provisioned 2026-07-24 with the original client secret;
 rotation happens at home-network deployment) and later in deployment secrets:
 
 - `M365_TENANT_ID`, `M365_CLIENT_ID`, `M365_CLIENT_SECRET`
-- `M365_REDIRECT_URI` (dev: `http://localhost:4000/api/v1/m365/callback`;
+- `M365_REDIRECT_URI` (dev: `http://localhost:14000/api/v1/m365/callback`;
   prod: `https://heorth.home.example.com/api/v1/m365/callback`)
 - `M365_FAMILY_MAILBOX` (the shared-mailbox SMTP address, app-only calendar)
 - `M365_SHARED_TODO_LIST` (display name of the shared write-target list)

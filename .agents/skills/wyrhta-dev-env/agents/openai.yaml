@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wyrhta Dev Env"
+  short_description: "Run the Wyrhta local dev stack"
+  default_prompt: "Use $wyrhta-dev-env to start the local Wyrhta development environment."

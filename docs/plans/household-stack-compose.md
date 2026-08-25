@@ -52,15 +52,18 @@ production file is the one that must never surprise anyone.
 
 | Service | Prod image | Dev source | Host port | Notes |
 |---|---|---|---|---|
-| `db` | `postgres:18-alpine` | same | none | one cluster, three databases |
-| `heorth` | `ghcr.io/wyrhta-labs/heorth` | `build: ../Heorth` | 4000→3000 | needs `FEOH_BASE_URL`, M365 group |
-| `feoh` | `ghcr.io/wyrhta-labs/feoh` | `build: ../Feoh` | 4001→3000 | private repo → registry auth |
-| `kithledger` | `ghcr.io/wyrhta-labs/kithledger` | `build: ../KithLedger` | 4002→3000 | only service publishing today |
+| `db` | `postgres:18-alpine` | same | dev: 15432→5432 | one cluster, three databases |
+| `heorth` | `ghcr.io/wyrhta-labs/heorth` | `build: ../Heorth` | dev: 14000→3000 | M365 group |
+| `feoh` | archived | retired slot | 14001 reserved | merged into Heorth by ADR 0007 |
+| `kithledger` | `ghcr.io/wyrhta-labs/kithledger` | `build: ../KithLedger` | dev: 14002→3000 | service image published |
+| `heorth-mcp` | `ghcr.io/wyrhta-labs/heorth-mcp` | `build: ../heorth-mcp` | dev: 14003→3200 | ADR 0008 MCP container |
 | `db-backup` | `postgres:18-alpine` | same | none | interval `pg_dump` to a volume |
 
-Host ports follow the existing dev allocation (Heorth 4000, Feoh 4001, KithLedger
-4002). Internal traffic uses service names (`db:5432`, `heorth:3000`), so no host
-port is required for services to reach each other.
+Host ports use the safe dev allocation chosen on 2026-08-25: Heorth 14000,
+retired Feoh slot 14001, KithLedger 14002, heorth-mcp 14003, Postgres 15432.
+The demo stack uses the matching 24xxx/25432 range. Internal traffic uses
+service names (`db:5432`, `heorth:3000`), so no host port is required for
+services to reach each other.
 
 **Not in the stack.** `wyrhta-core` is a library consumed by git tag — it never
 gets a container. `website-v0` is a public marketing site with no Dockerfile and
@@ -104,10 +107,10 @@ config at `<service>_dev`, left over from a previously hand-run `kith-testdb`
 container; keeping those database names lets this shared cluster absorb that role.
 
 The original intent was that no repo's dev `.env` would need to change at all.
-**That no longer holds:** the dev host port moved from 55432 to 55490 (55432 falls
-inside a Hyper-V/WSL excluded port range on the current host), and this cluster
-uses per-service roles rather than the old shared `kith:kithpw`. Every service
-repo's dev `.env` does need updating — see `deploy/README.md`.
+**That no longer holds:** the dev host port moved from the old shared
+`kith-testdb` 55432 allocation to **15432**, and this cluster uses per-service
+roles rather than the old shared `kith:kithpw`. Every service repo's dev `.env`
+does need updating — see `deploy/README.md`.
 
 **`compose.dev.yml` runs its services against `*_dev`; `compose.prod.yml` uses the
 primary names.** This is a fifth intended divergence between the two files, and it
@@ -115,7 +118,7 @@ is a safety property rather than a cosmetic one. Every service repo's
 `tests/setup.ts` refuses a `DATABASE_URL` containing `_dev` and truncates every
 table otherwise, so the `_dev` suffix is what protects dev data from a stray
 `npm test`. An earlier revision pointed dev at the primary databases, which
-silently defeated that guard — a test run against `…:55432/heorth` passed the
+silently defeated that guard — a test run against `...:55432/heorth` passed the
 check and would have wiped the running dev stack, reopening the incident at
 `manual-todo.md`'s dev-DB-wiped note.
 

@@ -61,7 +61,7 @@ genuinely architectural in it belongs in an ADR, written generically.
 ### 3. `Heorth/.claude/skills/run-local/SKILL.md`
 
 Line 114 documents the local admin as the maintainer's personal email address,
-and the same table hands out `postgres://kith:kithpw@localhost:55432/heorth_dev`
+and the same table hands out a stale `postgres://kith:kithpw@localhost:55432/heorth_dev`
 plus this machine's container names (`wyrhta-dev-heorth-1`, `kith-testdb`). The
 password is worthless to anyone else, but the file describes one specific
 person's laptop, in a repo about to become a public reference for self-hosters.
@@ -128,9 +128,10 @@ from `deploy/README.md` (lines 41–63), which currently tells a reader to
   does not, and it is the file the README tells you to copy.
 - `DATABASE_URL=postgres://heorth:changeme@localhost:5432/heorth` — port 5432 is
   a different project's cluster on the maintainer's machine, and the name is a
-  primary database, not `_test`. `tests/setup.ts:10` carries the same stale
-  default. Already recorded in `manual-todo.md` §6 as a real hazard: the test
-  suite truncates every table.
+  primary database, not `_test`. The shared dev stack now publishes Postgres on
+  15432, and `tests/setup.ts:10` carries the same stale default. Already
+  recorded in `manual-todo.md` §6 as a real hazard: the test suite truncates
+  every table.
 - KithLedger's `.env.example` is the model to copy — placeholders, not values,
   and a generator command per secret.
 

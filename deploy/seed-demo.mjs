@@ -1,7 +1,7 @@
 /**
  * Fills the demo household (deploy/compose.demo.yml) with sample data.
  *
- *   HEORTH_URL=http://localhost:4100 KITH_URL=http://localhost:4102 \
+ *   HEORTH_URL=http://localhost:24000 KITH_URL=http://localhost:24002 \
  *   HEORTH_ADMIN_EMAIL=... HEORTH_ADMIN_PASSWORD=... KITH_ADMIN_PASSWORD=... \
  *   DEMO_MEMBER_PASSWORD=... node deploy/seed-demo.mjs
  *
@@ -24,8 +24,8 @@
  * write is done as an ordinary member.
  */
 
-const HEORTH = (process.env.HEORTH_URL ?? 'http://localhost:4100').replace(/\/$/, '');
-const KITH = (process.env.KITH_URL ?? 'http://localhost:4102').replace(/\/$/, '');
+const HEORTH = (process.env.HEORTH_URL ?? 'http://localhost:24000').replace(/\/$/, '');
+const KITH = (process.env.KITH_URL ?? 'http://localhost:24002').replace(/\/$/, '');
 const ADMIN_EMAIL = process.env.HEORTH_ADMIN_EMAIL ?? 'admin@demo.invalid';
 const ADMIN_PASSWORD = req('HEORTH_ADMIN_PASSWORD');
 const KITH_ADMIN_PASSWORD = req('KITH_ADMIN_PASSWORD');

@@ -17,18 +17,19 @@ conditionals.
 
 | Service | Host port | Database |
 |---|---|---|
-| `heorth` | 4000 | `heorth` |
-| `kithledger` | 4002 | `kithledger` |
-| `heorth-mcp` | 4003 | — (owns no data) |
-| `db` | 5432 (dev only) | — |
+| `heorth` | 14000 | `heorth` |
+| `kithledger` | 14002 | `kithledger` |
+| `heorth-mcp` | 14003 | — (owns no data) |
+| `db` | 15432 (dev only) | — |
 | `db-backup` | — | dumps both |
 
 HAProxy already fronts the household and terminates TLS
 (`heorth.home.example.com`); the stack publishes plain ports on the docker
 host and does not run its own proxy.
 
-Ports above are the dev/prod stacks. The demo stack shifts every one of them —
-see [Demo household](#demo-household).
+Ports above are the dev stack. The production stack keeps its own published
+ports for the household server; the demo stack shifts every one of them — see
+[Demo household](#demo-household).
 
 ## Demo household
 
@@ -45,14 +46,15 @@ deploy/demo-up.sh --fresh    # destroy the demo's data, then rebuild and reseed
 
 | Service | Host port |
 |---|---|
-| `heorth` | 4100 |
-| `kithledger` | 4102 |
-| `heorth-mcp` | 4103 |
-| `db` | 55500 |
+| `heorth` | 24000 |
+| `kithledger` | 24002 |
+| `heorth-mcp` | 24003 |
+| `db` | 25432 |
 
 **Every port is shifted and the cluster is its own volume**
 (`wyrhta-demo_db_data`), so the demo runs alongside the dev stack, the per-repo
-stacks, and any unrelated Postgres on 5432. It is the one stack here without
+stacks, and any unrelated Postgres on 5432. The `*001` slot is intentionally
+left unused for the retired Feoh satellite. It is the one stack here without
 the "cannot run at the same time" gotcha below.
 
 Two properties are deliberate and worth keeping:
@@ -153,7 +155,7 @@ works anonymously and the login can be skipped entirely.
 
 ## heorth-mcp
 
-The household's single MCP server (ADR 0008), reached on port 4003. It owns no
+The household's single MCP server (ADR 0008), reached on dev port 14003. It owns no
 data and holds no Heorth credential: an MCP client presents its own
 `Authorization: Bearer he_...` and heorth-mcp forwards it verbatim to Heorth, so
 per-member permissions and the audit trail stay intact end to end.
@@ -237,7 +239,7 @@ what stops a stray `npm test` from wiping it — as happened once already
 Point test suites at the `*_test` databases:
 
 ```bash
-export DATABASE_URL=postgres://heorth:<pw>@localhost:5432/heorth_test
+export DATABASE_URL=postgres://heorth:<pw>@localhost:15432/heorth_test
 ```
 
 Do **not** point a test run at a primary database (`heorth`,
@@ -251,21 +253,18 @@ points its local dev config at `<service>_dev` (e.g. `heorth_dev`), and those
 database *names* are preserved here rather than renumbered.
 
 **The port is not.** Every service repo's `.env` still reads
-`postgres://kith:kithpw@localhost:55432/<service>_dev`, and this stack publishes
-**5432** (`compose.dev.yml`, the `db` service). Since `kith-testdb` is retired,
-nothing listens on 55432 at all, so those configs are stale and will fail to
-connect. Each service repo must update its own `.env` — and the credentials too:
+`postgres://kith:kithpw@localhost:55432/<service>_dev`, and this stack now
+publishes **15432** (`compose.dev.yml`, the `db` service). Since `kith-testdb`
+is retired, nothing listens on 55432 at all, so those configs are stale and will
+fail to connect. Each service repo must update its own `.env` — and the credentials too:
 this cluster uses per-service roles
-(`postgres://<service>:<pw>@localhost:5432/<service>_dev`), not the old shared
+(`postgres://<service>:<pw>@localhost:15432/<service>_dev`), not the old shared
 `kith:kithpw`. `Heorth/CLAUDE.md` also still documents the old
 `localhost:55432/heorth_test`.
 
-> An earlier revision of this file said the stack publishes **55490**, on the
-> grounds that 55432 falls inside a Hyper-V/WSL excluded port range on this host.
-> That is not what `compose.dev.yml` does — it maps `5432:5432`, and
-> `docker port wyrhta-dev-db-1` confirms `0.0.0.0:5432`. Corrected 2026-08-19;
-> if the excluded-range problem resurfaces, change the Compose file and this
-> file together.
+> The dev stack deliberately moved off the default Postgres port on 2026-08-25.
+> Keep the Compose file, this runbook, and the repo-local agent skills in sync
+> when the allocation changes.
 
 ## Backups
 
@@ -306,8 +305,9 @@ backed up separately (and as securely as the dumps themselves).
 
 - **This stack and the per-repo stacks cannot run at the same time.** Each service
   repo still has its own `docker-compose.yml` and `npm run docker:up`, which
-  publishes the same host port this stack uses (Heorth 4000,
-  KithLedger 4002). Running both gives `port is already allocated`. The per-repo
+  may publish the same host port this stack uses if their local config has been
+  aligned to it (Heorth 14000, KithLedger 14002). Running both gives
+  `port is already allocated`. The per-repo
   files are kept deliberately — they are still the quickest way to bring up one
   service alone — but pick one or the other. The same applies to running a
   service natively with `npm run dev`.
