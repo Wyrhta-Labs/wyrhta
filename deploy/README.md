@@ -65,10 +65,11 @@ Two properties are deliberate and worth keeping:
   dev databases on the shared `wyrhta-dev_db_data` volume; a demo seed landing
   there would be indistinguishable from real dev data. The demo uses the
   primary database names *inside its own isolated cluster*.
-- **It reaches no external system.** The six `M365_*` vars and the KithLedger
-  reminders-feed pair are pinned blank in `compose.demo.yml` (not merely left
-  unset in the env file), so no demo can touch a real tenant, mailbox, or feed.
-  The satellite signing key is generated per demo.
+- **It reaches no external system.** The six `M365_*` vars are pinned blank in
+  `compose.demo.yml` (not merely left unset in the env file), so no demo can
+  touch a real tenant or mailbox. The KithLedger reminder feed points only at
+  the sibling demo container, using a throwaway household key minted by
+  `demo-up.sh`. The satellite signing key is generated per demo.
 
 `demo-up.sh` writes `deploy/.env.demo` with fresh throwaway secrets on first
 run and prints the logins at the end. That file is git-ignored like every other

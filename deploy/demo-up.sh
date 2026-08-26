@@ -27,6 +27,105 @@ done
 
 rand() { node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))'; }
 
+load_env() {
+  set -a
+  # shellcheck disable=SC1090
+  . "$env_file"
+  set +a
+}
+
+set_env_value() {
+  node - "$env_file" "$1" "$2" <<'NODE'
+const [file, name, value] = process.argv.slice(2);
+const fs = require('node:fs');
+let text = fs.readFileSync(file, 'utf8');
+const line = `${name}=${value}`;
+const pattern = new RegExp(`^${name}=.*$`, 'm');
+if (pattern.test(text)) text = text.replace(pattern, line);
+else text += `${text.endsWith('\n') ? '' : '\n'}${line}\n`;
+fs.writeFileSync(file, text);
+NODE
+}
+
+wait_healthy() {
+  echo "==> waiting for services to report healthy: $*"
+  deadline=$(( $(date +%s) + 300 ))
+  while :; do
+    unhealthy=""
+    for svc in "$@"; do
+      cid="$("${compose[@]}" ps -q "$svc" 2>/dev/null || true)"
+      if [ -z "$cid" ]; then unhealthy="$unhealthy $svc(missing)"; continue; fi
+      state="$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo unknown)"
+      [ "$state" = "healthy" ] || unhealthy="$unhealthy $svc($state)"
+    done
+    [ -z "$unhealthy" ] && break
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      echo "!! timed out waiting for:$unhealthy" >&2
+      "${compose[@]}" ps >&2
+      exit 1
+    fi
+    sleep 3
+  done
+  echo "    healthy: $*"
+}
+
+ensure_kith_key() {
+  load_env
+  echo "==> ensuring Heorth has a demo KithLedger household key"
+  if [ -n "${KITH_API_KEY:-}" ]; then
+    if KITH_URL=http://localhost:24002 node - <<'NODE' >/dev/null 2>&1
+const base = process.env.KITH_URL;
+const key = process.env.KITH_API_KEY;
+(async () => {
+  const res = await fetch(`${base}/api/v1/reminders?limit=1`, {
+    headers: { authorization: `Bearer ${key}` },
+  });
+  process.exit(res.ok ? 0 : 1);
+})().catch(() => process.exit(1));
+NODE
+    then
+      echo "    existing demo household key is valid"
+      return
+    fi
+    echo "    existing demo key is not valid for this data volume; minting a new one"
+  fi
+
+  new_key="$(
+    KITH_URL=http://localhost:24002 node - <<'NODE'
+const base = process.env.KITH_URL;
+const password = process.env.KITH_ADMIN_PASSWORD;
+const post = (path, body, token) => fetch(`${base}${path}`, {
+  method: 'POST',
+  headers: {
+    'content-type': 'application/json',
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+  },
+  body: JSON.stringify(body),
+});
+(async () => {
+  const login = await post('/api/v1/auth/token', {
+    email: 'admin@kithledger.local',
+    password,
+  });
+  if (!login.ok) throw new Error(`KithLedger admin login failed: ${login.status}`);
+  const token = (await login.json()).data.token;
+  const created = await post('/api/v1/auth/keys', {
+    name: 'heorth-hearth-wall-demo',
+    kind: 'household',
+  }, token);
+  if (!created.ok) throw new Error(`KithLedger key creation failed: ${created.status}`);
+  process.stdout.write((await created.json()).data.key);
+})().catch((e) => {
+  console.error(e.message);
+  process.exit(1);
+});
+NODE
+  )"
+  set_env_value KITH_API_KEY "$new_key"
+  export KITH_API_KEY="$new_key"
+  echo "    minted a throwaway household key"
+}
+
 if [ ! -f "$env_file" ]; then
   echo "==> generating $env_file (throwaway demo secrets)"
   # Single-line Ed25519 JWK, per the generator documented in .env.example.
@@ -38,8 +137,9 @@ if [ ! -f "$env_file" ]; then
 # a backup, and not related to deploy/.env. Delete this file and re-run
 # demo-up.sh to rotate everything.
 #
-# The demo reaches no external system: M365 and the KithLedger reminders feed
-# are pinned blank in compose.demo.yml, not here.
+# The demo reaches no external system: M365 is pinned blank in
+# compose.demo.yml, and KithLedger points only at the sibling demo container.
+# KITH_API_KEY below is a throwaway household key minted by this script.
 
 POSTGRES_SUPERUSER_PASSWORD=$(rand)
 HEORTH_DB_PASSWORD=$(rand)
@@ -81,32 +181,24 @@ if [ "$fresh" = true ]; then
 fi
 
 if [ "$reseed_only" = false ]; then
-  echo "==> building and starting the demo stack"
-  "${compose[@]}" up -d --build
+  echo "==> building and starting KithLedger so the demo key can be minted"
+  "${compose[@]}" up -d --build db kithledger
+  wait_healthy db kithledger
+  ensure_kith_key
 
-  echo "==> waiting for every service to report healthy"
-  deadline=$(( $(date +%s) + 300 ))
-  while :; do
-    unhealthy=""
-    for svc in db heorth kithledger heorth-mcp; do
-      cid="$("${compose[@]}" ps -q "$svc" 2>/dev/null || true)"
-      if [ -z "$cid" ]; then unhealthy="$unhealthy $svc(missing)"; continue; fi
-      state="$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo unknown)"
-      [ "$state" = "healthy" ] || unhealthy="$unhealthy $svc($state)"
-    done
-    [ -z "$unhealthy" ] && break
-    if [ "$(date +%s)" -ge "$deadline" ]; then
-      echo "!! timed out waiting for:$unhealthy" >&2
-      "${compose[@]}" ps >&2
-      exit 1
-    fi
-    sleep 3
-  done
-  echo "    all healthy"
+  echo "==> building and starting the full demo stack"
+  "${compose[@]}" up -d --build
+  wait_healthy db heorth kithledger heorth-mcp
+else
+  wait_healthy kithledger
+  ensure_kith_key
+  echo "==> refreshing Heorth with the demo KithLedger key"
+  "${compose[@]}" up -d --build heorth heorth-mcp
+  wait_healthy heorth heorth-mcp
 fi
 
 echo "==> seeding sample data"
-set -a; . "$env_file"; set +a
+load_env
 HEORTH_URL=http://localhost:24000 \
 KITH_URL=http://localhost:24002 \
 node "$here/seed-demo.mjs"

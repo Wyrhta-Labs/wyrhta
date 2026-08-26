@@ -79,6 +79,7 @@ services:
       # KithLedger reminders feed — both, or both blank. Partial presence
       # is a startup error.
       KITH_BASE_URL: ${KITH_BASE_URL:-}
+      KITH_PUBLIC_URL: ${KITH_PUBLIC_URL:-}
       KITH_API_KEY: ${KITH_API_KEY:-}
       # Satellite identity (ADR 0002 Phase B / ADR 0009). Heorth signs short-lived
       # member tokens with this key and publishes the public half at

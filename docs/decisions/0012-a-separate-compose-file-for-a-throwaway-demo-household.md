@@ -47,12 +47,13 @@ isolated throwaway household, driven by one script.**
    database names
    (`heorth`, `kithledger`) inside its own cluster, which is safe precisely
    because the cluster is separate and off the default port.
-2. **It cannot reach an external system.** The six `M365_*` vars and the
-   KithLedger reminders-feed pair are **pinned blank in the Compose file**, not
-   merely left unset in an env file. Blanking them there means no `.env` a
-   future maintainer writes can switch a demo onto a real tenant, mailbox, or
-   feed by accident. Both groups are all-or-nothing, so blank means disabled.
-   The satellite signing key is generated per demo and shared with nothing.
+2. **It cannot reach an external system.** The six `M365_*` vars are **pinned
+   blank in the Compose file**, not merely left unset in an env file. Blanking
+   them there means no `.env` a future maintainer writes can switch a demo onto
+   a real tenant or mailbox by accident. The KithLedger reminders feed points
+   only at the sibling demo container, with a throwaway household key minted by
+   `demo-up.sh` after KithLedger is healthy and before Heorth starts. The
+   satellite signing key is generated per demo and shared with nothing.
 3. **Generated secrets, never committed ones.** `deploy/demo-up.sh` writes
    `deploy/.env.demo` with fresh random values on first run. It is git-ignored
    by the existing `/deploy/.env*` rule; delete it and re-run to rotate. A
@@ -74,9 +75,9 @@ isolated throwaway household, driven by one script.**
   cost of the no-conditionals rule, and it is the same trade 0008-era `dev`/`prod`
   duplication already made — the demo file is not a new kind of debt.
 - **A demo is not a deployment rehearsal.** It builds from sibling checkouts and
-  runs with M365 and the reminders feed disabled, so it exercises neither the
-  pinned-image path nor any external integration. `compose.prod.yml` remains the
-  only thing that resembles the household server.
+  runs with M365 disabled and KithLedger wired only to the sibling demo service,
+  so it exercises neither the pinned-image path nor any external integration.
+  `compose.prod.yml` remains the only thing that resembles the household server.
 - **`seed-demo.mjs` is a loaded gun pointed by a URL.** It writes household data
   as real members and nothing in it distinguishes a demo Heorth from a real one
   but the base URL it is given. That warning lives at the top of the file and in

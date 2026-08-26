@@ -21,8 +21,8 @@
 #      Postgres on 5432.
 #
 # NOTHING HERE REACHES A REAL EXTERNAL SYSTEM. The six M365_* vars are blank
-# (all-or-nothing: all blank = integration disabled), the KITH_* reminders-feed
-# pair is blank, and the satellite signing key is generated fresh per demo.
+# (all-or-nothing: all blank = integration disabled), KithLedger is the sibling
+# demo container, and the satellite signing key is generated fresh per demo.
 
 name: wyrhta-demo
 
@@ -110,12 +110,13 @@ services:
       M365_REDIRECT_URI: ""
       M365_FAMILY_MAILBOX: ""
       M365_SHARED_TODO_LIST: ""
-      # KithLedger reminders feed into Heorth: BOTH blank = feed disabled.
-      # Enabling it needs a household-kinded kl_ key minted in the demo
-      # KithLedger first, which is a chicken-and-egg the demo does not need.
-      KITH_BASE_URL: ""
-      KITH_API_KEY: ""
-      KITH_API_KEY_KIND: ""
+      # KithLedger reminders feed into Heorth. The bootstrap script starts
+      # KithLedger first, mints a throwaway household-kinded key into
+      # deploy/.env.demo, then starts Heorth with the feed enabled.
+      KITH_BASE_URL: http://kithledger:3000
+      KITH_PUBLIC_URL: http://localhost:24002
+      KITH_API_KEY: ${KITH_API_KEY:-}
+      KITH_API_KEY_KIND: household
       # Satellite identity (ADR 0009). Generated fresh per demo by demo-up.sh;
       # DISTINCT from JWT_SECRET by design.
       SATELLITE_SIGNING_KEY: ${SATELLITE_SIGNING_KEY:?set it in deploy/.env.demo}
