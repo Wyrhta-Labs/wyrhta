@@ -38,10 +38,6 @@ _(`website` — the public site. Content reaches it one way, via the transfer do
 > them.
 - [`going-public.md`](going-public.md) — the audit and checklist for making the
   repos public: what leaks, what blocks, what a stranger trips over.
-- [`wyrhta-core-review-handoff.md`](wyrhta-core-review-handoff.md) — **closed.**
-  The provenance record of the 2026-08-23 `wyrhta-core` code review: which commit
-  closed which of the ten findings, and the one residual gap a fix left behind.
-  No open work.
 
 ## Cross-service conventions
 
