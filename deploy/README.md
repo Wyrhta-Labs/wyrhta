@@ -20,10 +20,15 @@ conditionals.
 | Service | Host port | Database |
 |---|---|---|
 | `heorth` | 14000 | `heorth` |
+| `firefly` | 14001 | `firefly` |
 | `kithledger` | 14002 | `kithledger` |
 | `heorth-mcp` | 14003 | — (owns no data) |
+| `firefly-importer` | 14004 | — (owns no data) |
 | `db` | 15432 (dev only) | — |
-| `db-backup` | — | dumps both |
+| `db-backup` | — | dumps `heorth` + `kithledger` |
+
+`firefly` and `firefly-importer` are the optional bank-ingestion sidecar
+(ADR 0016) and run in dev and prod only — see [Bank ingestion](#bank-ingestion).
 
 HAProxy already fronts the household and terminates TLS
 (`heorth.home.example.com`); the stack publishes plain ports on the docker
@@ -32,6 +37,73 @@ host and does not run its own proxy.
 Ports above are the dev stack. The production stack keeps its own published
 ports for the household server; the demo stack shifts every one of them — see
 [Demo household](#demo-household).
+
+## Dev stack
+
+One command, from a clean checkout:
+
+```bash
+deploy/dev-up.sh             # bash, Git Bash or WSL
+deploy/dev-up.sh --no-build  # start without rebuilding
+```
+
+```powershell
+.\deploy\dev-up.ps1          # PowerShell
+```
+
+Both wrap `deploy/dev-up.mjs`, where all the logic lives — one implementation
+for every shell, which is why this does not need the PowerShell fallback
+`demo-up.sh` does. It creates `deploy/.env` from `.env.example` when absent and
+fills **only blank values** (database passwords, both JWT secrets, both admin
+passwords, the satellite signing key, Firefly's `APP_KEY`). An existing value is
+never overwritten. `M365_*`, `KITH_API_KEY` and `FIREFLY_PAT` stay blank — they
+reach real external systems — and are reported as blank at the end.
+
+There is deliberately **no `--fresh`**: the dev cluster holds real local
+development data. Only the demo gets a data-destroying flag.
+
+**Upgrading a checkout that predates the ingestion sidecar.** `compose.dev.yml`
+now requires `FIREFLY_DB_PASSWORD` and `FIREFLY_APP_KEY`, so a raw
+`docker compose ... up` against an older `deploy/.env` stops with
+`required variable FIREFLY_DB_PASSWORD is missing a value`. That is the loud
+failure it should be — Firefly cannot boot without a real 32-character key, and
+a silent default would only move the error. Run `deploy/dev-up.sh` once; it adds
+exactly those two lines and changes nothing else.
+
+## Bank ingestion
+
+Firefly III and its Data Importer are an **optional** sidecar whose only job is
+talking to banks — PSD2 enrolment, CAMT.053, per-bank quirks ([ADR
+0016](../docs/decisions/0016-bank-ingestion-behind-an-ingestion-provider.md)).
+Feoh, inside Heorth, stays the system of record for every financial fact the
+household sees. Heorth *polls* Firefly through a two-method, read-only ingestion
+provider; there is no inbound route, no webhook and no shared secret, so Firefly
+being down pauses the import and nothing else. Firefly's budgets, bills, rules
+engine and reconciliation are unused, and its web UI is an **operator** tool for
+connecting banks, never a household surface.
+
+Dev and prod only. The demo stack runs neither container — it reaches no
+external system (ADR 0012) — and `seed-demo.mjs` fills the import inbox
+directly instead.
+
+**The one step no script can do.** Firefly mints personal access tokens through
+its web UI only, so `FEOH_IMPORT_ENABLED` defaults to `false` and stays there
+until you do this by hand:
+
+1. `http://localhost:14001` → register the operator account.
+2. Profile → OAuth → Personal Access Tokens → Create new token.
+3. Paste into `deploy/.env` as `FIREFLY_PAT` (shown once).
+4. `FEOH_IMPORT_ENABLED=true`, then re-run `deploy/dev-up.sh`.
+
+**Firefly's database is not backed up.** `db-backup` dumps `heorth` and
+`kithledger` only, and that is the intended shape: Firefly owns no
+household-visible data, and everything it collected that matters has already
+been booked into Feoh. The cost of losing its volume is re-enrolling the bank
+connections, not losing a financial record.
+
+`APP_KEY` must be exactly 32 characters or Firefly refuses to boot, and
+`APP_URL` must match the URL the browser uses or Firefly answers "invalid host".
+`dev-up.mjs` gets both right; if you fill `deploy/.env` by hand, do not.
 
 ## Demo household
 
@@ -55,9 +127,9 @@ deploy/demo-up.sh --fresh    # destroy the demo's data, then rebuild and reseed
 
 **Every port is shifted and the cluster is its own volume**
 (`wyrhta-demo_db_data`), so the demo runs alongside the dev stack, the per-repo
-stacks, and any unrelated Postgres on 5432. The `*001` slot is intentionally
-left unused for the retired Feoh satellite. It is the one stack here without
-the "cannot run at the same time" gotcha below.
+stacks, and any unrelated Postgres on 5432. `24001` and `24004` stay unused:
+the dev stack runs Firefly there, and the demo deliberately does not. It is the
+one stack here without the "cannot run at the same time" gotcha below.
 
 Two properties are deliberate and worth keeping:
 
@@ -209,9 +281,17 @@ keys are cached for the process lifetime.
 
 ## Databases
 
-`initdb/10-databases.sh` creates the two roles and databases — **only when the
+`initdb/10-databases.sh` creates the roles and databases — **only when the
 data directory is empty**. Docker skips `docker-entrypoint-initdb.d` entirely on
 an existing volume.
+
+It creates `heorth` and `kithledger` unconditionally, and `firefly` only when
+`FIREFLY_DB_PASSWORD` is non-empty. That guard is why the same directory can be
+mounted by `compose.demo.yml`, which runs no Firefly: blank means "this stack
+has no Firefly" and is a skip, not the empty-password error. Because every
+existing dev cluster predates this, `dev-up.mjs` also creates the `firefly` role
+and `firefly_dev` database idempotently on each run — the manual step below,
+automated for the one service that needs it.
 
 **Adding a third service later is a manual step**, not a Compose change:
 
@@ -222,8 +302,8 @@ docker compose -f deploy/compose.prod.yml --env-file deploy/.env exec db \
   -c "REVOKE ALL ON DATABASE newsvc FROM PUBLIC;"
 ```
 
-The dev file also creates four extra databases: `heorth_test`,
-`kithledger_test`, and `heorth_dev`, `kithledger_dev`.
+The dev file also creates five extra databases: `heorth_test`,
+`kithledger_test`, and `heorth_dev`, `kithledger_dev`, `firefly_dev`.
 
 ### Which database runs what, and why it matters
 
@@ -231,6 +311,7 @@ The dev file also creates four extra databases: `heorth_test`,
 |---|---|---|---|
 | Heorth | `heorth_dev` | `heorth` | `heorth_test` |
 | KithLedger | `kithledger_dev` | `kithledger` | `kithledger_test` |
+| Firefly III | `firefly_dev` | `firefly` | — (no test suite runs against it) |
 
 **The dev services deliberately run against `*_dev`, not the primary databases.**
 This is a safety property, not a cosmetic choice. Each service repo's

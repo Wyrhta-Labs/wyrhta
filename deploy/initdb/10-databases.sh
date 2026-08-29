@@ -40,3 +40,21 @@ if [ "${CREATE_TEST_DATABASES:-false}" = "true" ]; then
     echo "initdb: created database '$db'"
   done
 fi
+
+# Firefly III, the bank-ingestion sidecar (ADR 0016). GUARDED ON A NON-EMPTY
+# PASSWORD, not on a stack name: compose.demo.yml mounts this same directory and
+# runs no Firefly, so an unconditional call here would abort the whole demo
+# cluster on the empty-password check above. Blank means "this stack has no
+# Firefly" and is a skip, not an error.
+if [ -n "${FIREFLY_DB_PASSWORD:-}" ]; then
+  create_owned_db firefly firefly "${FIREFLY_DB_PASSWORD}"
+  if [ "${CREATE_TEST_DATABASES:-false}" = "true" ]; then
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
+	CREATE DATABASE "firefly_dev" OWNER "firefly";
+	REVOKE ALL ON DATABASE "firefly_dev" FROM PUBLIC;
+	EOSQL
+    echo "initdb: created database 'firefly_dev'"
+  fi
+else
+  echo "initdb: FIREFLY_DB_PASSWORD is empty — skipping the firefly role and databases"
+fi

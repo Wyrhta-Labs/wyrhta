@@ -14,21 +14,55 @@ defaults:
 | Service | Dev | Demo |
 |---|---:|---:|
 | Heorth | `14000` | `24000` |
-| Reserved Feoh slot | `14001` | `24001` |
+| Firefly III | `14001` | — |
 | KithLedger | `14002` | `24002` |
 | heorth-mcp | `14003` | `24003` |
+| Firefly Data Importer | `14004` | — |
 | Postgres | `15432` | `25432` |
 
-The `*001` slot is reserved for the retired Feoh satellite so the allocation
-stays readable if old notes or scripts mention it. Inside containers, services
-still use normal ports: Heorth and KithLedger listen on `3000`, heorth-mcp on
-`3200`, and Postgres on `5432`.
+The `*001` slot used to be reserved for the retired Feoh satellite; Firefly III
+now occupies it in dev (ADR 0016). Inside containers, services still use normal
+ports: Heorth and KithLedger listen on `3000`, heorth-mcp on `3200`, the two
+Firefly containers on `8080`, and Postgres on `5432`.
 
 ## Dev Stack
 
 Use the dev stack when you are actively working across services. It builds from
 the sibling checkouts and persists real local development data in the
 `wyrhta-dev_db_data` Docker volume.
+
+### From nothing, in one command
+
+```powershell
+.\deploy\dev-up.ps1          # PowerShell
+```
+
+```bash
+deploy/dev-up.sh             # bash, Git Bash or WSL
+deploy/dev-up.sh --no-build  # start without rebuilding the images
+```
+
+Both are three-line wrappers around `deploy/dev-up.mjs`; run
+`node deploy/dev-up.mjs` directly if you prefer. There is one implementation,
+so all three behave identically — unlike `demo-up.sh`, which is bash and needs
+the PowerShell fallback documented below.
+
+It creates `deploy/.env` from `.env.example` when absent and then fills **only
+blank or missing values**: database passwords, both JWT secrets, both admin
+passwords, the Ed25519 satellite signing key and Firefly's `APP_KEY`. A value
+you have already filled is never overwritten, so running it against an existing
+`.env` is safe. Then it builds, starts, makes sure Firefly's database exists,
+waits for health, and prints the URLs.
+
+Anything that reaches a real external system is left blank and reported as
+blank: the six `M365_*` vars, `KITH_API_KEY`, and `FIREFLY_PAT`. The script
+prints **where** the generated passwords are, never the passwords themselves.
+
+Note it does not delete anything. There is no `--fresh` here — the dev cluster
+holds real local development data, which is exactly what the demo's `--fresh`
+exists to throw away.
+
+### By hand
 
 ```powershell
 cp deploy/.env.example deploy/.env
@@ -49,9 +83,43 @@ URLs:
 | Surface | URL |
 |---|---|
 | Heorth | `http://localhost:14000` |
+| Firefly III | `http://localhost:14001` |
 | KithLedger | `http://localhost:14002` |
 | heorth-mcp | `http://localhost:14003` |
+| Firefly Data Importer | `http://localhost:14004` |
 | Postgres | `localhost:15432` |
+
+### The bank-ingestion sidecar
+
+Firefly III and its Data Importer run in the dev stack as an **optional**
+sidecar whose only job is talking to banks (ADR 0016). Feoh, inside Heorth,
+stays the system of record for every financial fact the household sees; Firefly
+is a one-way inbound feed that Heorth polls. Firefly's web UI is an operator
+tool for connecting banks and is never a household surface.
+
+Nothing depends on either container. `heorth` has no `depends_on` for Firefly on
+purpose: Firefly being down pauses the import and nothing else, so the dev stack
+is fully usable with both containers stopped.
+
+`FEOH_IMPORT_ENABLED` defaults to `false`, and it has to, because of the one
+step no script can do for you — **Firefly mints personal access tokens through
+its web UI only**:
+
+1. Open `http://localhost:14001` and register the operator account.
+2. Profile → OAuth → Personal Access Tokens → Create new token.
+3. Paste it into `deploy/.env` as `FIREFLY_PAT`. It is shown once.
+4. Set `FEOH_IMPORT_ENABLED=true` and re-run `deploy/dev-up.sh`.
+
+Firefly gets its own role and database, `firefly` / `firefly_dev`, in the shared
+dev cluster. `initdb/10-databases.sh` creates them on an empty volume; on a
+cluster that already exists — which is every cluster created before this — the
+directory is skipped entirely, so `dev-up.mjs` creates them instead. That is the
+manual third-service step `deploy/README.md` documents, just automated.
+
+The demo stack runs **neither** container. A demo reaches no external system
+(ADR 0012), so `seed-demo.mjs` fills the import inbox and rules directly, and
+`compose.demo.yml` pins `FEOH_IMPORT_ENABLED: "false"` literally rather than
+leaving it unset — the same belt-and-braces the six `M365_*` vars get there.
 
 The dev services use `heorth_dev` and `kithledger_dev`, not the primary database
 names. Tests must use `_test` databases, for example:

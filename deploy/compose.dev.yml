@@ -22,6 +22,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set it in deploy/.env}
       HEORTH_DB_PASSWORD: ${HEORTH_DB_PASSWORD:?set it in deploy/.env}
       KITH_DB_PASSWORD: ${KITH_DB_PASSWORD:?set it in deploy/.env}
+      # Firefly's role and databases (ADR 0016). Only read by initdb, and only
+      # on an EMPTY volume — on an existing dev cluster deploy/dev-up.sh
+      # creates them instead, which is the manual step deploy/README.md
+      # documents for adding a service to a live cluster.
+      FIREFLY_DB_PASSWORD: ${FIREFLY_DB_PASSWORD:-}
       CREATE_TEST_DATABASES: "true"
     volumes:
       # Postgres 18 sets PGDATA to /var/lib/postgresql/<major>/docker and
@@ -106,6 +111,19 @@ services:
       SATELLITE_AUDIENCES: ${SATELLITE_AUDIENCES:-}
       # The reminders feed presents a household-kinded kl_ key (ADR 0004 §2).
       KITH_API_KEY_KIND: ${KITH_API_KEY_KIND:-}
+      # Bank ingestion (ADR 0016). Firefly III is a one-way ingestion provider,
+      # never the ledger — Feoh stays the system of record. Heorth POLLS the
+      # sidecar; there is no inbound route and no shared secret.
+      #
+      # DEFAULTS OFF, and stays off until FIREFLY_PAT is filled. Firefly mints
+      # personal access tokens through its web UI only (Profile -> OAuth ->
+      # Personal Access Tokens); there is no non-interactive path, so this is
+      # the one value deploy/dev-up.sh cannot generate for you. Off means the
+      # scheduler does not start; reading the inbox, maintaining rules and
+      # confirming pending rows keep working — they are pure Feoh writes.
+      FEOH_IMPORT_ENABLED: ${FEOH_IMPORT_ENABLED:-false}
+      FIREFLY_BASE_URL: ${FIREFLY_BASE_URL:-http://firefly:8080}
+      FIREFLY_PAT: ${FIREFLY_PAT:-}
     depends_on:
       db:
         condition: service_healthy
@@ -146,6 +164,78 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # --- Bank ingestion sidecar (ADR 0016) ------------------------------------
+  #
+  # Firefly III's ONLY job here is talking to banks: PSD2 enrolment, CAMT.053
+  # and per-bank quirks. Its budgets, bills, rules engine and reconciliation
+  # are unused, and its web UI is an OPERATOR tool for connecting banks — never
+  # a household surface, which is why its one-user-per-administration limit
+  # never surfaces. Heorth reads it through a two-method, read-only ingestion
+  # provider and books what it can into Feoh.
+  #
+  # NOTHING DEPENDS ON THESE TWO. `heorth` deliberately has no depends_on here:
+  # Firefly being down pauses the import and nothing else. Neither service
+  # appears in compose.demo.yml (ADR 0012 — a demo reaches no external system;
+  # seed-demo.mjs fills the import inbox directly instead).
+  firefly:
+    image: fireflyiii/core:version-6.6.6
+    environment:
+      # Exactly 32 characters. Firefly refuses to boot otherwise.
+      # deploy/dev-up.sh generates it.
+      APP_KEY: ${FIREFLY_APP_KEY:?set it in deploy/.env — run deploy/dev-up.sh}
+      # Must match the URL the browser uses, or Firefly answers "invalid host".
+      APP_URL: ${FIREFLY_APP_URL:-http://localhost:14001}
+      TRUSTED_PROXIES: "**"
+      SITE_OWNER: ${HEORTH_ADMIN_EMAIL:?set it in deploy/.env}
+      TZ: ${TZ:-Europe/Berlin}
+      # Its own role and database in the shared cluster. _dev on purpose, like
+      # every other dev database here.
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: firefly_dev
+      DB_USERNAME: firefly
+      DB_PASSWORD: ${FIREFLY_DB_PASSWORD:?set it in deploy/.env — run deploy/dev-up.sh}
+    volumes:
+      - firefly_upload:/var/www/html/storage/upload
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "14001:8080"
+    healthcheck:
+      # curl, NOT wget: the image is Debian-based and ships curl only. Firefly
+      # runs its migrations on first boot, hence the long start_period.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  firefly-importer:
+    image: fireflyiii/data-importer:version-1.9.1
+    environment:
+      # Where the importer TALKS to Firefly (compose network) vs. where it
+      # sends the operator's BROWSER (published host port). Both are needed.
+      FIREFLY_III_URL: http://firefly:8080
+      VANITY_URL: ${FIREFLY_APP_URL:-http://localhost:14001}
+      # Blank until an operator mints one in Firefly's UI. The importer starts
+      # either way and asks for a token on its first screen.
+      FIREFLY_III_ACCESS_TOKEN: ${FIREFLY_PAT:-}
+      TRUSTED_PROXIES: "**"
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - firefly_importer_config:/var/www/html/storage/configurations
+    depends_on:
+      firefly:
+        condition: service_started
+    ports:
+      - "14004:8080"
+    # No healthcheck: this is an operator UI that nothing waits on, and an
+    # unverified probe expression would only hang deploy/dev-up.sh.
+    restart: unless-stopped
+
   db-backup:
     image: postgres:18-alpine
     environment:
@@ -165,3 +255,5 @@ services:
 volumes:
   db_data:
   db_backups:
+  firefly_upload:
+  firefly_importer_config:

@@ -21,6 +21,12 @@ isolated household stack in `deploy/compose.demo.yml`, seeded by
   shows empty household content. Tell the user to log in as a seeded member.
 - `deploy/.env.demo` is generated, git-ignored, and may contain throwaway secrets.
   Read only the login values needed for the task; do not paste JWTs or keys.
+- **The demo runs no Firefly.** The bank-ingestion sidecar (ADR 0016) is dev and
+  prod only, because a demo reaches no external system (ADR 0012). If the user
+  asks for Firefly in the demo, say that and point at `deploy/dev-up.sh` — do
+  not add the container to `compose.demo.yml`. `FEOH_IMPORT_ENABLED` is pinned
+  `"false"` there, and an empty import inbox beyond what `seed-demo.mjs` writes
+  is the correct state, not a fault.
 
 ## Standard Flow
 

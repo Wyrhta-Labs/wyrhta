@@ -103,7 +103,23 @@ line. Adding a service means adding a line, nothing else.
 ### 3. Install and run
 
 Each service is independent and carries its own README with its own quick start.
-To run the whole household stack at once instead:
+To run the whole household stack at once instead, from a clean checkout and with
+no configuration:
+
+```bash
+deploy/dev-up.sh       # bash, Git Bash or WSL
+```
+
+```powershell
+.\deploy\dev-up.ps1    # PowerShell
+```
+
+Both wrap `deploy/dev-up.mjs`. It creates `deploy/.env` when absent, generates
+the local dev secrets it can (never overwriting a value you filled), starts
+everything, and prints the URLs. Values that reach a real external system —
+`M365_*`, `KITH_API_KEY`, `FIREFLY_PAT` — are left blank and reported as blank.
+
+By hand, if you prefer:
 
 ```bash
 cp deploy/.env.example deploy/.env
@@ -111,10 +127,14 @@ cp deploy/.env.example deploy/.env
 docker compose -f deploy/compose.dev.yml --env-file deploy/.env up -d --build
 ```
 
+The throwaway seeded demo is `deploy/demo-up.sh`.
+
 See [`deploy/README.md`](deploy/README.md) for ports, databases, backups, and the
 production file. For the two local multi-service environments, see
 [`docs/local-environments.md`](docs/local-environments.md): dev uses
-`14000/14002/14003/15432`, and demo uses `24000/24002/24003/25432`.
+`14000/14001/14002/14003/14004/15432`, and demo uses `24000/24002/24003/25432`.
+`14001` and `14004` are Firefly III and its Data Importer, the optional
+bank-ingestion sidecar (ADR 0016), which the demo deliberately does not run.
 
 ## Agent skills
 
@@ -125,7 +145,7 @@ drift between tools.
 
 | Skill | Use |
 |---|---|
-| [`wyrhta-dev-env`](.agents/skills/wyrhta-dev-env/SKILL.md) | Start, inspect, stop, and troubleshoot the local dev stack (`deploy/compose.dev.yml`) on ports 14000/14002/14003 |
+| [`wyrhta-dev-env`](.agents/skills/wyrhta-dev-env/SKILL.md) | Bootstrap, start, inspect, stop, and troubleshoot the local dev stack (`deploy/dev-up.sh`, `deploy/compose.dev.yml`) on ports 14000–14004 |
 | [`wyrhta-demo`](.agents/skills/wyrhta-demo/SKILL.md) | Start, reseed, reset, and verify the throwaway seeded demo (`deploy/compose.demo.yml`) on ports 24000/24002/24003 |
 
 Runtime discovery stubs are tracked under [`.codex/skills/`](.codex/skills/),

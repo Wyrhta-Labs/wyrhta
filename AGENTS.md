@@ -45,7 +45,9 @@ Use the repo-local skills before operating the shared local stacks:
 
 - **Dev stack:** read `.agents/skills/wyrhta-dev-env/SKILL.md`; use
   `deploy/compose.dev.yml` with `deploy/.env`. It builds sibling checkouts and
-  runs real local dev data on `heorth_dev` / `kithledger_dev`.
+  runs real local dev data on `heorth_dev` / `kithledger_dev`. `deploy/dev-up.sh`
+  (PowerShell: `deploy\dev-up.ps1`) is the one-command bring-up; it fills only
+  blank values in `deploy/.env` and never touches a filled one.
 - **Demo stack:** read `.agents/skills/wyrhta-demo/SKILL.md`; use
   `deploy/compose.demo.yml` and `deploy/demo-up.sh` where possible. It is an
   isolated, throwaway, seeded household and must not reach real external systems.
@@ -57,12 +59,20 @@ environment. The shared stack ports are:
 | Service | Dev | Demo |
 |---|---:|---:|
 | Heorth | 14000 | 24000 |
-| Reserved Feoh slot | 14001 | 24001 |
+| Firefly III | 14001 | — |
 | KithLedger | 14002 | 24002 |
 | heorth-mcp | 14003 | 24003 |
+| Firefly Data Importer | 14004 | — |
 | Postgres | 15432 | 25432 |
 
-Container-internal ports stay conventional (`3000`, `3200`, `5432`). Tests must
+Firefly III is the bank-ingestion sidecar (ADR 0016), and it takes the slot the
+retired Feoh satellite used to reserve. It runs in **dev and prod only**: the
+demo stack reaches no external system (ADR 0012) and `seed-demo.mjs` fills its
+import inbox directly instead. Firefly is never a household surface — its web UI
+is an operator tool for connecting banks, and Feoh remains the system of record.
+
+Container-internal ports stay conventional (`3000`, `3200`, `5432`, and `8080`
+for the two Firefly containers). Tests must
 use `_test` databases, never the dev databases. `deploy/.env` and
 `deploy/.env.demo` are ignored secret files: do not commit them and do not paste
 their contents. Demo scripts may read login values from `.env.demo`, but bearer

@@ -123,6 +123,12 @@ services:
       SATELLITE_SIGNING_KID: ${SATELLITE_SIGNING_KID:-heorth-demo}
       SATELLITE_SIGNING_ALG: ${SATELLITE_SIGNING_ALG:-EdDSA}
       SATELLITE_AUDIENCES: ${SATELLITE_AUDIENCES:-kithledger}
+      # Bank ingestion is OFF here, and pinned literally rather than left unset
+      # for the same reason the six M365_* vars above are: a demo must not
+      # reach a real external system, and there is no Firefly sidecar in this
+      # stack to reach (ADR 0016 §8, ADR 0012). seed-demo.mjs fills the import
+      # inbox directly, so the inbox and the rules UI still have content.
+      FEOH_IMPORT_ENABLED: "false"
     depends_on:
       db:
         condition: service_healthy
