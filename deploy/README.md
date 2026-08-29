@@ -56,8 +56,9 @@ for every shell, which is why this does not need the PowerShell fallback
 `demo-up.sh` does. It creates `deploy/.env` from `.env.example` when absent and
 fills **only blank values** (database passwords, both JWT secrets, both admin
 passwords, the satellite signing key, Firefly's `APP_KEY`). An existing value is
-never overwritten. `M365_*`, `KITH_API_KEY` and `FIREFLY_PAT` stay blank — they
-reach real external systems — and are reported as blank at the end.
+never overwritten. It also bootstraps Firefly: operator account, personal
+access token, `FEOH_IMPORT_ENABLED=true`. `M365_*` and `KITH_API_KEY` stay blank
+— those reach real external systems — and are reported as blank at the end.
 
 There is deliberately **no `--fresh`**: the dev cluster holds real local
 development data. Only the demo gets a data-destroying flag.
@@ -86,14 +87,38 @@ Dev and prod only. The demo stack runs neither container — it reaches no
 external system (ADR 0012) — and `seed-demo.mjs` fills the import inbox
 directly instead.
 
-**The one step no script can do.** Firefly mints personal access tokens through
-its web UI only, so `FEOH_IMPORT_ENABLED` defaults to `false` and stays there
-until you do this by hand:
+**In dev, the token is minted for you.** Firefly has no artisan command and no
+API for creating a personal access token — only its web UI — so `dev-up.mjs`
+drives that UI: it creates the Passport personal-access client, registers
+`FIREFLY_OPERATOR_EMAIL` through `POST /register` (or logs in, if the account is
+already there), asks Passport for a token, checks the token against
+`/api/v1/about`, writes it to `deploy/.env` as `FIREFLY_PAT`, sets
+`FEOH_IMPORT_ENABLED=true`, and recreates `heorth` and `firefly-importer` so they
+pick it up. A fresh checkout therefore reaches a working ingestion sidecar in one
+command.
 
-1. `http://localhost:14001` → register the operator account.
-2. Profile → OAuth → Personal Access Tokens → Create new token.
-3. Paste into `deploy/.env` as `FIREFLY_PAT` (shown once).
-4. `FEOH_IMPORT_ENABLED=true`, then re-run `deploy/dev-up.sh`.
+Three things about that are deliberate:
+
+- **It is the only place in this stack coupled to someone else's HTML.**
+  Everything else talks to a documented API. That is why the Firefly image is
+  pinned to an exact version, and why a Firefly upgrade should be followed by one
+  `dev-up.sh` run against a wiped `firefly_dev`.
+- **Every step fails soft.** If Firefly changes its forms, the bring-up still
+  succeeds, ingestion stays off, and the script prints how to mint a token by
+  hand: `FIREFLY_APP_URL` → Profile → OAuth → Personal Access Tokens → paste into
+  `deploy/.env` → re-run.
+- **It never sends `verify_password`.** That checkbox is Firefly's
+  Have-I-Been-Pwned lookup, and a local dev bring-up must not call a third party.
+
+**Production does none of this.** `compose.prod.yml` neither runs `dev-up.mjs`
+nor knows it exists; there the operator account and its token are created by a
+human, once. The dev shortcut is acceptable only because the operator password
+sits in a git-ignored file on a local throwaway stack.
+
+Re-running with `FIREFLY_PAT` already set skips the whole bootstrap. Blanking it
+and re-running mints an additional token rather than replacing the old one —
+harmless in dev, and `php artisan passport:purge` cleans up if it ever bothers
+you.
 
 **Firefly's database is not backed up.** `db-backup` dumps `heorth` and
 `kithledger` only, and that is the intended shape: Firefly owns no

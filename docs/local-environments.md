@@ -52,11 +52,14 @@ blank or missing values**: database passwords, both JWT secrets, both admin
 passwords, the Ed25519 satellite signing key and Firefly's `APP_KEY`. A value
 you have already filled is never overwritten, so running it against an existing
 `.env` is safe. Then it builds, starts, makes sure Firefly's database exists,
-waits for health, and prints the URLs.
+bootstraps Firefly's operator account and API token, waits for health, and
+prints the URLs. Bank ingestion is on when it finishes.
 
 Anything that reaches a real external system is left blank and reported as
-blank: the six `M365_*` vars, `KITH_API_KEY`, and `FIREFLY_PAT`. The script
-prints **where** the generated passwords are, never the passwords themselves.
+blank: the six `M365_*` vars and `KITH_API_KEY`. `FIREFLY_PAT` is not in that
+group — Firefly is a container we own, so the script mints that token itself.
+The script prints **where** the generated passwords are, never the passwords
+themselves.
 
 Note it does not delete anything. There is no `--fresh` here — the dev cluster
 holds real local development data, which is exactly what the demo's `--fresh`
@@ -101,14 +104,23 @@ Nothing depends on either container. `heorth` has no `depends_on` for Firefly on
 purpose: Firefly being down pauses the import and nothing else, so the dev stack
 is fully usable with both containers stopped.
 
-`FEOH_IMPORT_ENABLED` defaults to `false`, and it has to, because of the one
-step no script can do for you — **Firefly mints personal access tokens through
-its web UI only**:
+**You do not have to set this up by hand.** Firefly mints personal access
+tokens through its web UI only — no artisan command, no API — so `dev-up.mjs`
+drives that UI for you: it creates the Passport personal-access client,
+registers the `FIREFLY_OPERATOR_EMAIL` account (or logs in if it already
+exists), mints a token, verifies it against `/api/v1/about`, writes it to
+`deploy/.env` as `FIREFLY_PAT`, flips `FEOH_IMPORT_ENABLED` to `true`, and
+recreates `heorth` and `firefly-importer`. One command, working ingestion.
 
-1. Open `http://localhost:14001` and register the operator account.
-2. Profile → OAuth → Personal Access Tokens → Create new token.
-3. Paste it into `deploy/.env` as `FIREFLY_PAT`. It is shown once.
-4. Set `FEOH_IMPORT_ENABLED=true` and re-run `deploy/dev-up.sh`.
+The operator account is not a household member. It exists to connect banks, and
+its password lives in `deploy/.env` — which is precisely why this is a dev-only
+shortcut. On the household server the account and its token are created by a
+person, once; `compose.prod.yml` has no bootstrap.
+
+If Firefly ever changes its forms, the bring-up still succeeds and ingestion
+just stays off, with instructions printed. The manual route is unchanged:
+`http://localhost:14001` → Profile → OAuth → Personal Access Tokens → paste into
+`deploy/.env` → re-run.
 
 Firefly gets its own role and database, `firefly` / `firefly_dev`, in the shared
 dev cluster. `initdb/10-databases.sh` creates them on an empty volume; on a

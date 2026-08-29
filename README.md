@@ -116,8 +116,10 @@ deploy/dev-up.sh       # bash, Git Bash or WSL
 
 Both wrap `deploy/dev-up.mjs`. It creates `deploy/.env` when absent, generates
 the local dev secrets it can (never overwriting a value you filled), starts
-everything, and prints the URLs. Values that reach a real external system —
-`M365_*`, `KITH_API_KEY`, `FIREFLY_PAT` — are left blank and reported as blank.
+everything, bootstraps Firefly's operator account and API token so bank
+ingestion works immediately, and prints the URLs. Values that reach a real
+external system — `M365_*`, `KITH_API_KEY` — are left blank and reported as
+blank.
 
 By hand, if you prefer:
 

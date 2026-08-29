@@ -22,8 +22,9 @@
 //   - It never deletes a volume. The dev cluster holds real local development
 //     data; there is no --fresh flag here on purpose (the demo has one because
 //     the demo's data is disposable).
-//   - It never invents an EXTERNAL credential. M365_*, KITH_API_KEY and
-//     FIREFLY_PAT stay blank and are reported as blank.
+//   - It never invents an EXTERNAL credential. M365_* and KITH_API_KEY stay
+//     blank and are reported as blank. FIREFLY_PAT is not one of those: Firefly
+//     is a container we own, so the script mints that token itself.
 //   - It never prints a secret. It prints where to read them.
 
 import { execFileSync } from 'node:child_process';
@@ -70,7 +71,8 @@ for (const arg of args) {
           '',
           '  Fills deploy/.env with generated local dev secrets (existing values',
           '  are never overwritten), builds and starts compose.dev.yml, ensures',
-          "  Firefly's database exists, waits for health, and prints the URLs.",
+          "  Firefly's database exists, mints its personal access token and turns",
+          '  bank ingestion on, waits for health, and prints the URLs.',
           '',
           '  --no-build   start without rebuilding the service images',
         ].join('\n'),
@@ -182,10 +184,16 @@ const GENERATED = [
   // Local-dev identity. Overwrite them in deploy/.env if you want your own.
   ['HOUSEHOLD_NAME', () => 'Wyrhta Dev Household'],
   ['HEORTH_ADMIN_EMAIL', () => 'admin@dev.invalid'],
+  // Firefly's operator account, created by fireflyBootstrap() below. Kept in
+  // deploy/.env so a later run can log in again instead of being locked out of
+  // an instance it created itself. Firefly enforces a 16-character minimum.
+  ['FIREFLY_OPERATOR_EMAIL', () => 'operator@dev.invalid'],
+  ['FIREFLY_OPERATOR_PASSWORD', () => hex(16)],
 ];
 
-// Left blank on purpose: every one of these reaches a real external system or
-// must be minted by hand. Reported at the end, never invented.
+// Left blank on purpose: every one of these reaches a real external system.
+// Reported at the end, never invented. FIREFLY_PAT is NOT here — Firefly is a
+// container we own, so we can mint that one ourselves.
 const EXTERNAL = [
   'M365_TENANT_ID',
   'M365_CLIENT_ID',
@@ -194,7 +202,6 @@ const EXTERNAL = [
   'M365_FAMILY_MAILBOX',
   'M365_SHARED_TODO_LIST',
   'KITH_API_KEY',
-  'FIREFLY_PAT',
 ];
 
 function ensureEnvFile() {
@@ -299,6 +306,210 @@ function ensureFireflyDatabase(env) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Firefly bootstrap
+//
+// Firefly mints personal access tokens through its web UI only — there is no
+// artisan command and no API for it. So this drives that UI: it registers the
+// first user through `POST /register` and asks Passport for a token through
+// `POST /oauth/personal-access-tokens`, exactly as a browser would.
+//
+// THIS IS THE ONE PLACE IN THE STACK COUPLED TO SOMEONE ELSE'S HTML. Everything
+// else here talks to a documented API. That is why the Firefly image is pinned
+// to an exact version, and why every step below fails soft: a Firefly upgrade
+// that renames a form field must degrade to "do it by hand", never break the
+// bring-up of a stack that does not otherwise need Firefly at all.
+//
+// DEV ONLY. It leaves the instance with an operator password sitting in
+// deploy/.env, which is right for a local throwaway and wrong everywhere else.
+// compose.prod.yml neither calls this nor knows it exists.
+
+/** The smallest cookie jar that survives Laravel's session + redirect dance. */
+function makeJar() {
+  const jar = new Map();
+  return {
+    header: () => [...jar].map(([k, v]) => `${k}=${v}`).join('; '),
+    absorb(response) {
+      for (const cookie of response.headers.getSetCookie?.() ?? []) {
+        const [pair] = cookie.split(';');
+        const index = pair.indexOf('=');
+        if (index > 0) jar.set(pair.slice(0, index).trim(), pair.slice(index + 1).trim());
+      }
+    },
+  };
+}
+
+/** Laravel puts the CSRF token in a hidden _token input on every form. */
+function csrfFrom(html) {
+  const match =
+    /name="_token"[^>]*value="([^"]+)"/.exec(html) ?? /value="([^"]+)"[^>]*name="_token"/.exec(html);
+  return match?.[1] ?? null;
+}
+
+async function fireflyBootstrap(env, baseUrl) {
+  const jar = makeJar();
+
+  const get = async (path) => {
+    const response = await fetch(`${baseUrl}${path}`, {
+      headers: { Cookie: jar.header() },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(20_000),
+    });
+    jar.absorb(response);
+    return response;
+  };
+
+  const post = async (path, body, extraHeaders = {}) => {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { Cookie: jar.header(), ...extraHeaders },
+      body,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(30_000),
+    });
+    jar.absorb(response);
+    return response;
+  };
+
+  const email = env.get('FIREFLY_OPERATOR_EMAIL');
+  const password = env.get('FIREFLY_OPERATOR_PASSWORD');
+
+  // Passport 12 ships no personal-access client on a fresh install, and
+  // /oauth/personal-access-tokens fails without one. Idempotent in effect: a
+  // second client would work too, but we only create one when none exists.
+  const clients = docker(
+    compose('exec', '-T', 'firefly', 'php', 'artisan', 'passport:client', '--personal', '--name=wyrhta-dev', '--no-interaction'),
+    { stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  if (!/created successfully/i.test(clients)) {
+    throw new Error(`passport:client did not report success: ${clients.trim().slice(0, 200)}`);
+  }
+
+  // Register the operator, or log in when this instance already has one.
+  //
+  // FIREFLY CLOSES REGISTRATION AS SOON AS A USER EXISTS: /register then answers
+  // 200 with an error page carrying no form at all. So a missing CSRF token here
+  // is an ordinary second-run state, not a failure — falling through to /login
+  // is the whole point. Only a failure of BOTH paths is worth an error.
+  let session = false;
+
+  const registerPage = await get('/register');
+  const registerToken = csrfFrom(await registerPage.text());
+  if (registerToken) {
+    const registered = await post(
+      '/register',
+      new URLSearchParams({
+        _token: registerToken,
+        email,
+        password,
+        password_confirmation: password,
+        // verify_password is DELIBERATELY ABSENT. It is Firefly's
+        // Have-I-Been-Pwned check, and sending it would make bringing up a
+        // local dev stack call a third-party service.
+      }),
+      { 'Content-Type': 'application/x-www-form-urlencoded' },
+    );
+    session = registered.status === 302;
+  }
+
+  if (!session) {
+    const login = await get('/login');
+    const loginToken = csrfFrom(await login.text());
+    if (!loginToken) {
+      throw new Error('neither /register nor /login offered a form — Firefly may have changed');
+    }
+    const loggedIn = await post(
+      '/login',
+      new URLSearchParams({ _token: loginToken, email, password }),
+      { 'Content-Type': 'application/x-www-form-urlencoded' },
+    );
+    if (loggedIn.status !== 302) {
+      throw new Error(
+        `cannot register or log in as ${email}. If you created this Firefly account by ` +
+          'hand, put its password in FIREFLY_OPERATOR_PASSWORD, or mint a PAT yourself.',
+      );
+    }
+  }
+
+  // Logging in regenerates the session, so the token must be read again.
+  const profile = await get('/profile');
+  const profileToken = csrfFrom(await profile.text());
+  if (!profileToken) throw new Error('no CSRF token on /profile — not logged in?');
+
+  const created = await post(
+    '/oauth/personal-access-tokens',
+    JSON.stringify({ name: 'wyrhta-dev', scopes: [] }),
+    {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-CSRF-TOKEN': profileToken,
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  );
+  if (created.status !== 200 && created.status !== 201) {
+    throw new Error(`POST /oauth/personal-access-tokens returned ${created.status}`);
+  }
+  const token = (await created.json()).accessToken;
+  if (!token) throw new Error('Passport returned no accessToken');
+
+  // Prove it before writing it anywhere. A token that parses but is rejected
+  // would otherwise turn into a confusing Heorth error hours later.
+  const about = await fetch(`${baseUrl}/api/v1/about`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!about.ok) throw new Error(`the new token was rejected by /api/v1/about (${about.status})`);
+
+  return token;
+}
+
+/**
+ * Obtain and persist FIREFLY_PAT, then turn the import feed on. Returns a short
+ * status string for the summary. Never throws: bank ingestion is optional, and
+ * a stack that is otherwise healthy must not be reported as failed because a
+ * sidecar could not be bootstrapped.
+ */
+async function ensureFireflyPat(env) {
+  if (env.get('FIREFLY_PAT')) return 'enabled (token already in deploy/.env)';
+  if (!env.get('FIREFLY_DB_PASSWORD')) return 'skipped (no FIREFLY_DB_PASSWORD)';
+
+  const baseUrl = env.get('FIREFLY_APP_URL') || 'http://localhost:14001';
+
+  log('bootstrapping Firefly: operator account + personal access token');
+  if (!(await waitHealthy(['firefly'], 300_000))) {
+    warn('Firefly did not become healthy in time — skipping the token bootstrap');
+    return 'not bootstrapped (Firefly unhealthy)';
+  }
+
+  let token;
+  try {
+    token = await fireflyBootstrap(env, baseUrl);
+  } catch (error) {
+    warn(`could not bootstrap Firefly: ${error.message}`);
+    warn('The stack is fine — bank ingestion just stays off. Mint a token by hand at');
+    warn(`${baseUrl} (Profile -> OAuth -> Personal Access Tokens) and put it in`);
+    warn('deploy/.env as FIREFLY_PAT, then re-run.');
+    return 'not bootstrapped (see the warning above)';
+  }
+
+  let text = readFileSync(envFile, 'utf8');
+  text = setEnvValue(text, 'FIREFLY_PAT', token);
+  text = setEnvValue(text, 'FEOH_IMPORT_ENABLED', 'true');
+  writeFileSync(envFile, text);
+  log('wrote FIREFLY_PAT to deploy/.env and set FEOH_IMPORT_ENABLED=true');
+
+  // Both containers read the token from the environment at start, so they have
+  // to be recreated for it to take effect. Wait for heorth to come back before
+  // returning: without this the summary below reports the stack it just tore
+  // down, and says "unreachable" about a service that is merely restarting.
+  dockerInherit(compose('up', '-d', 'heorth', 'firefly-importer'));
+  if (!(await waitHealthy(['heorth', 'firefly-importer'], 300_000))) {
+    warn('heorth did not come back healthy after picking up the new token');
+    return 'token minted, but heorth did not restart cleanly';
+  }
+  return 'enabled (token minted this run)';
+}
+
 function healthOf(service) {
   let id;
   try {
@@ -376,6 +587,10 @@ async function main() {
 
   const healthy = await waitHealthy(REQUIRED, 300_000);
 
+  // After the required services, because it recreates heorth: doing it earlier
+  // would mean waiting for heorth to come healthy twice.
+  const ingestion = await ensureFireflyPat(values);
+
   console.log('');
   log('health');
   for (const [name, url] of HTTP_PROBES) {
@@ -391,21 +606,17 @@ async function main() {
   console.log('    passwords      deploy/.env (HEORTH_ADMIN_PASSWORD, KITH_ADMIN_PASSWORD)');
   console.log('                   Never paste them into chat, issues or logs.');
 
+  console.log('');
+  log('bank ingestion');
+  console.log(`    ${ingestion}`);
+  console.log('    Firefly operator  ' + values.get('FIREFLY_OPERATOR_EMAIL'));
+  console.log('    password          deploy/.env (FIREFLY_OPERATOR_PASSWORD)');
+
   const blank = EXTERNAL.filter((name) => !values.get(name));
   if (blank.length > 0) {
     console.log('');
     log('left blank on purpose — these reach real external systems');
     console.log(`    ${blank.join(', ')}`);
-  }
-
-  if (!values.get('FIREFLY_PAT')) {
-    console.log('');
-    log('to finish the bank-ingestion sidecar (optional — the stack works without it)');
-    console.log('    1. open http://localhost:14001 and register the operator account');
-    console.log('    2. Profile -> OAuth -> Personal Access Tokens -> Create new token');
-    console.log('    3. paste it into deploy/.env as FIREFLY_PAT (it is shown once)');
-    console.log('    4. set FEOH_IMPORT_ENABLED=true, then re-run deploy/dev-up.sh');
-    console.log('    Firefly mints tokens through its UI only; no script can do this step.');
   }
 
   console.log('');
@@ -414,7 +625,15 @@ async function main() {
     log('keep it somewhere safe, and never commit it.');
   }
 
-  process.exit(healthy ? 0 : 1);
+  // Re-checked rather than trusting the earlier wait: ensureFireflyPat may have
+  // recreated heorth since then. Firefly itself is excluded on purpose — bank
+  // ingestion is optional, so a sidecar that failed to come up is a warning,
+  // not a non-zero exit.
+  const stillHealthy = REQUIRED.every((service) => {
+    const state = healthOf(service);
+    return state === 'healthy' || state === 'running';
+  });
+  process.exit(healthy && stillHealthy ? 0 : 1);
 }
 
 main().catch((error) => {

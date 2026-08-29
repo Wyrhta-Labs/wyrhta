@@ -21,10 +21,12 @@ against the shared dev Postgres cluster.
   conventions into service code.
 - Never point tests at dev databases. The dev stack uses `heorth_dev` and
   `kithledger_dev`; test suites need their own `_test` databases.
-- `deploy/dev-up.sh` may generate the LOCAL DEV secrets in `deploy/.env`; that
-  is what it is for. Never invent a production secret, and never invent an
-  external credential in any environment — `M365_*`, `KITH_API_KEY` and
-  `FIREFLY_PAT` are obtained, not generated.
+- `deploy/dev-up.sh` may generate the LOCAL DEV secrets in `deploy/.env`, and
+  may bootstrap Firefly's operator account and API token; that is what it is
+  for. Never invent a production secret, and never invent an external
+  credential in any environment — `M365_*` and `KITH_API_KEY` are obtained, not
+  generated. `FIREFLY_PAT` is the exception only because Firefly is a container
+  we own, and only in dev.
 - Never print the contents of `deploy/.env`. Report where a value lives, not
   what it is.
 
@@ -108,16 +110,32 @@ its container state; do not block on it.
 talking to banks; Feoh inside Heorth remains the system of record, and Firefly's
 web UI is an operator tool for connecting banks, never a household surface.
 
-`FEOH_IMPORT_ENABLED` defaults to `false` and must stay false until a human has
-pasted a `FIREFLY_PAT` into `deploy/.env`. **Firefly mints personal access
-tokens through its web UI only** — there is no non-interactive path, so do not
-try to script it and do not claim the sidecar is working without that token.
-Walk the user through it:
+**In dev this is already automated — do not walk the user through it by hand
+unless the script failed.** Firefly mints personal access tokens through its web
+UI only, so `dev-up.mjs` drives that UI: Passport personal-access client, then
+register (or log in as) `FIREFLY_OPERATOR_EMAIL`, then mint and verify a token,
+then write `FIREFLY_PAT` and `FEOH_IMPORT_ENABLED=true` and recreate `heorth`
+and `firefly-importer`. After a successful `deploy/dev-up.sh`, ingestion is on.
 
-1. open `http://localhost:14001`, register the operator account
+The script reports one of these; repeat it rather than guessing:
+
+```text
+enabled (token minted this run)
+enabled (token already in deploy/.env)
+not bootstrapped (see the warning above)
+```
+
+Only on `not bootstrapped` is the manual route relevant:
+
+1. open `http://localhost:14001`, log in as `FIREFLY_OPERATOR_EMAIL`
+   (password in `deploy/.env`, `FIREFLY_OPERATOR_PASSWORD`)
 2. Profile -> OAuth -> Personal Access Tokens -> Create new token
 3. paste into `deploy/.env` as `FIREFLY_PAT` (shown once)
 4. set `FEOH_IMPORT_ENABLED=true`, re-run `deploy/dev-up.sh`
+
+**This bootstrap is dev-only.** It leaves an operator password in `deploy/.env`.
+Never run it, port it, or suggest it for `compose.prod.yml`; on the household
+server that account and its token are created by a person, once.
 
 ## Stop
 
@@ -162,8 +180,12 @@ For API iteration, either rebuild the `heorth` service or stop the compose
 - Firefly answering "invalid host" means `FIREFLY_APP_URL` does not match the
   URL in the browser. A boot failure right after a config change is usually
   `FIREFLY_APP_KEY` not being exactly 32 characters.
-- An empty import inbox in dev is expected until `FIREFLY_PAT` is set. In the
-  demo it is expected always — the demo runs no Firefly and seeds the inbox.
+- An empty import inbox in dev is expected until a bank is connected in
+  Firefly; the token being present only means Heorth can poll. In the demo an
+  empty inbox beyond the seed is expected always — no Firefly runs there.
+- `could not bootstrap Firefly` after a Firefly version bump usually means the
+  registration or login form changed. The bring-up is still fine; mint the
+  token by hand and open an issue to re-check `fireflyBootstrap()`.
 
 ## User-Facing Output
 
