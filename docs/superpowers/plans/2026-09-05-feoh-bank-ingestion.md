@@ -1013,6 +1013,26 @@ describe('inbox lifecycle', () => {
     expect(await db.select().from(transactions)).toHaveLength(1);
   });
 
+  it('a confirm racing a dismiss ends with exactly one winner and a consistent row', async () => {
+    const { adult, account, groceries } = await setup();
+    await imp.upsertAccountMapping({ sourceAccountId: '7', accountId: account.id });
+    await imp.ingest([fakeLine({ sourceId: '6:6', payee: 'Aldi' })]);
+    const [pending] = await db.select().from(feohImportedTransactions);
+    const settled = await Promise.allSettled([
+      imp.confirmInboxRow(pending!.id, { envelopeId: groceries.id }, adult.user.id),
+      imp.dismissInboxRow(pending!.id),
+    ]);
+    const fulfilled = settled.filter((s) => s.status === 'fulfilled');
+    const rejected = settled.filter((s) => s.status === 'rejected') as PromiseRejectedResult[];
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0]!.reason as Error).message).toBe('NOT_PENDING');
+    const [after] = await db.select().from(feohImportedTransactions);
+    const txCount = (await db.select().from(transactions)).length;
+    // either booked with its transaction, or dismissed with none — never a mix
+    expect(after!.status === 'booked' ? after!.transactionId !== null && txCount === 1 : after!.status === 'dismissed' && after!.transactionId === null && txCount === 0).toBe(true);
+  });
+
   it('addManualLine goes through ingest — prefixed source_id, rule hit books, repeat is a no-op', async () => {
     const { adult, account, groceries } = await setup();
     await imp.upsertAccountMapping({ sourceAccountId: 'cash', accountId: account.id });
@@ -1224,17 +1244,28 @@ export async function confirmInboxRow(
     accountId = m?.accountId;
   }
   if (!accountId) throw new Error('ACCOUNT_UNMAPPED');
-  return bookRow(row, i.envelopeId, accountId, memberId, null);
+  const booked = await bookRow(row, i.envelopeId, accountId, memberId, null);
+  // bookRow hands back the row untouched when it lost a race; a member asked
+  // to book, so anything but `booked` is the same answer as the pre-check.
+  if (booked.status !== 'booked') throw new Error('NOT_PENDING');
+  return booked;
 }
 
+/**
+ * Atomic transition: the UPDATE itself carries the `status = 'pending'` guard,
+ * so a dismiss racing a confirm either wins outright or matches no row. Without
+ * the guard it could set `dismissed` on a row confirm just booked and trip the
+ * booked-pair CHECK — or overwrite the booking's status.
+ */
 export async function dismissInboxRow(id: string): Promise<ImportedTransactionRow> {
-  const row = await getInboxRow(id);
-  if (!row) throw new Error('NOT_FOUND');
-  if (row.status !== 'pending') throw new Error('NOT_PENDING');
   const [updated] = await db.update(feohImportedTransactions)
     .set({ status: 'dismissed', updatedAt: new Date() })
-    .where(eq(feohImportedTransactions.id, id)).returning();
-  return updated!;
+    .where(and(eq(feohImportedTransactions.id, id), eq(feohImportedTransactions.status, 'pending')))
+    .returning();
+  if (updated) return updated;
+  const row = await getInboxRow(id);
+  if (!row) throw new Error('NOT_FOUND');
+  throw new Error('NOT_PENDING');
 }
 
 /** Re-evaluate PENDING rows against the current rules. Booked rows are never touched (spec §4). */
