@@ -41,6 +41,7 @@
 8. **Poll interval reuses `INTEGRATIONS_SYNC_INTERVAL_SECONDS`** (floored at 60s). No new knob.
 9. **Overlap window = 7 days, page limit = 100, no bulk confirm** (spec's open questions: start with the guess, one row at a time).
 10. **Member hard-delete messaging** (spec §3 "the delete path should say so"): Heorth has no mapped restrict error on member deletion for `transactions.created_by` either, so this slice adds none — consistency over a one-off. Noted as deferred in the CHANGELOG entry.
+11. **Booking is one database transaction, and one tick runs at a time** (from Codex's pre-execution review). `recordTransaction()` gains an optional third parameter, a drizzle transaction handle, so `bookRow` can lock the inbox row `FOR UPDATE`, re-check it is still pending, write the ledger and mark the row booked atomically — a crash can never leave a ledger transaction without its inbox link, and two writers on one row cannot double-book. `runImportTick()` refuses to overlap itself in-process (`already_running`, `409 ALREADY_RUNNING` on the route); the scheduler and the manual trigger share that guard. The status route also reports the household currency so the web never hard-codes it.
 
 ---
 
@@ -842,7 +843,7 @@ git commit -m "feat(feoh): import rule matching — (priority, id) order, first 
 - Test: `Heorth/tests/feoh-import-service.test.ts`
 
 **Interfaces:**
-- Consumes: `recordTransaction(input, createdBy)` from `../service.js`; `matchRule` (Task 4); schema (Task 2); `ImportedTransaction` (Task 3); `config.feohCurrency` (Task 1)
+- Consumes: `recordTransaction(input, createdBy, tx?)` and `type Tx` from `../service.js` (both amended in Step 4 of this task); `matchRule` (Task 4); schema (Task 2); `ImportedTransaction` (Task 3); `config.feohCurrency` (Task 1)
 - Produces (all exported from `import/service.ts`):
   - `listAccountMappings(): Promise<ImportAccountMapping[]>`, `upsertAccountMapping(i: { sourceAccountId: string; accountId: string }): Promise<ImportAccountMapping>`, `deleteAccountMapping(id): Promise<ImportAccountMapping | null>`
   - `listRules(): Promise<ImportRule[]>`, `createRule(i: RuleInput, createdBy): Promise<ImportRule>`, `updateRule(id, patch: Partial<RuleInput>): Promise<ImportRule | null>`, `deleteRule(id): Promise<ImportRule | null>` where `RuleInput = { pattern: string; envelopeId: string; priority?: number; enabled?: boolean }`
@@ -996,6 +997,20 @@ describe('inbox lifecycle', () => {
     expect(await db.select().from(transactions)).toHaveLength(0);
     // re-import of the same line is still a no-op: the register kept the row
     expect((await imp.ingest([fakeLine({ sourceId: '7:1' })])).inserted).toBe(0);
+  });
+
+  it('two concurrent confirms of one line book exactly one transaction', async () => {
+    const { adult, account, groceries } = await setup();
+    await imp.upsertAccountMapping({ sourceAccountId: '7', accountId: account.id });
+    await imp.ingest([fakeLine({ sourceId: '6:5', payee: 'Aldi' })]);
+    const [pending] = await db.select().from(feohImportedTransactions);
+    const results = await Promise.all([
+      imp.confirmInboxRow(pending!.id, { envelopeId: groceries.id }, adult.user.id),
+      imp.confirmInboxRow(pending!.id, { envelopeId: groceries.id }, adult.user.id),
+    ]);
+    expect(results.every((r) => r.status === 'booked')).toBe(true);
+    expect(new Set(results.map((r) => r.transactionId)).size).toBe(1);
+    expect(await db.select().from(transactions)).toHaveLength(1);
   });
 
   it('addManualLine goes through ingest — prefixed source_id, rule hit books, repeat is a no-op', async () => {
@@ -1259,12 +1274,17 @@ export async function revertBookedRows(tx: Tx, transactionId: string): Promise<n
 // ---------------------------------------------------------------- booking
 
 /**
- * The one place an inbox row becomes ledger data. Exactly two postings, in the
- * convention `reconcileAccount` and `seed-demo.mjs` already use:
- *   out: envelope debit / account credit;  in: account debit / envelope credit.
- * `recordTransaction` owns its own db.transaction, so the row update follows it
- * as a second statement; a failure there leaves a booked transaction without its
- * link, which the next tick cannot duplicate (source_id is already registered).
+ * The one place an inbox row becomes ledger data — and ONE database
+ * transaction: lock the row (`FOR UPDATE`) and re-check it is still pending,
+ * write the ledger through `recordTransaction(…, tx)` on the same handle, mark
+ * the row booked. All three commit or none do, so a crash can never leave a
+ * ledger transaction without its inbox link (which dedup would then never
+ * revisit). A concurrent tick or member on the same row blocks on the lock,
+ * then sees it is no longer pending and returns it untouched.
+ *
+ * Exactly two postings, in the convention `reconcileAccount` and
+ * `seed-demo.mjs` already use: out = envelope debit / account credit;
+ * in = account debit / envelope credit.
  */
 async function bookRow(
   row: ImportedTransactionRow,
@@ -1273,35 +1293,88 @@ async function bookRow(
   createdBy: string,
   appliedRuleId: string | null,
 ): Promise<ImportedTransactionRow> {
-  const amount = Number(row.amount);
-  const postingsFor = row.direction === 'out'
-    ? [
-        { envelopeId, accountId: null, debit: amount, credit: 0 },
-        { accountId, envelopeId: null, debit: 0, credit: amount },
-      ]
-    : [
-        { accountId, envelopeId: null, debit: amount, credit: 0 },
-        { envelopeId, accountId: null, debit: 0, credit: amount },
-      ];
-  const { transaction } = await recordTransaction({
-    date: row.date, payee: row.payee, memo: row.memo, amount, postings: postingsFor, splits: [],
-  }, createdBy);
-  const [updated] = await db.update(feohImportedTransactions).set({
-    status: 'booked', transactionId: transaction.id, envelopeId, appliedRuleId, updatedAt: new Date(),
-  }).where(eq(feohImportedTransactions.id, row.id)).returning();
-  return updated!;
+  return db.transaction(async (tx) => {
+    const [locked] = await tx.select().from(feohImportedTransactions)
+      .where(eq(feohImportedTransactions.id, row.id)).for('update');
+    if (!locked) throw new Error('NOT_FOUND');
+    if (locked.status !== 'pending') return locked; // raced: someone else booked or dismissed it
+    const amount = Number(locked.amount);
+    const postingsFor = locked.direction === 'out'
+      ? [
+          { envelopeId, accountId: null, debit: amount, credit: 0 },
+          { accountId, envelopeId: null, debit: 0, credit: amount },
+        ]
+      : [
+          { accountId, envelopeId: null, debit: amount, credit: 0 },
+          { envelopeId, accountId: null, debit: 0, credit: amount },
+        ];
+    const { transaction } = await recordTransaction({
+      date: locked.date, payee: locked.payee, memo: locked.memo, amount, postings: postingsFor, splits: [],
+    }, createdBy, tx);
+    const [updated] = await tx.update(feohImportedTransactions).set({
+      status: 'booked', transactionId: transaction.id, envelopeId, appliedRuleId, updatedAt: new Date(),
+    }).where(eq(feohImportedTransactions.id, locked.id)).returning();
+    return updated!;
+  });
 }
 ```
 
+Replace the local `type Tx = …` line near the top of the file with `import type { Tx } from '../service.js';` — the type is exported from there in Step 4.
+
 If `RecordTransactionInput` (inferred from `recordTransactionSchema`) rejects the literal `null` beside a set id, match its shape exactly (the validator declares both ids `optional().nullable()`, so it should not); do not loosen the validator.
 
-- [ ] **Step 4: Unbook inside `deleteTransaction()`**
+- [ ] **Step 4: Let `recordTransaction()` join a caller's transaction, and unbook inside `deleteTransaction()`**
 
 In `Heorth/src/modules/feoh/service.ts`, add at the top:
 
 ```ts
 import { revertBookedRows } from './import/service.js';
+
+/** The drizzle transaction handle, for callers that need several ledger steps to commit together. */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 ```
+
+Change `recordTransaction` so the body runs on a caller-supplied handle when given one — the validation and the statements are untouched, only the wrapper changes:
+
+```ts
+export async function recordTransaction(input: RecordTransactionInput, createdBy: string, tx?: Tx) {
+  if (!postingsBalance(input.postings)) {
+    throw new Error('UNBALANCED');
+  }
+  if (input.postings.some((p) => !p.accountId && !p.envelopeId)) {
+    throw new Error('ORPHAN_POSTING');
+  }
+  const run = async (t: Tx) => {
+    const [txn] = await t.insert(transactions).values({
+      date: input.date, payee: input.payee, memo: input.memo ?? null,
+      amount: String(input.amount), createdBy,
+    }).returning();
+
+    const postingRows = await t.insert(postings).values(
+      input.postings.map((p) => ({
+        transactionId: txn!.id,
+        accountId: p.accountId ?? null,
+        envelopeId: p.envelopeId ?? null,
+        debit: String(p.debit),
+        credit: String(p.credit),
+      })),
+    ).returning();
+
+    let splitRows: Array<typeof expenseSplits.$inferSelect> = [];
+    if (input.splits && input.splits.length > 0) {
+      splitRows = await t.insert(expenseSplits).values(
+        input.splits.map((s) => ({ transactionId: txn!.id, memberId: s.memberId, share: String(s.share) })),
+      ).returning();
+    }
+
+    return { transaction: txn!, postings: postingRows, splits: splitRows };
+  };
+  // Postgres has no nested transactions: with a handle, join it; without, open one.
+  return tx ? run(tx) : db.transaction(run);
+}
+```
+
+Every existing caller passes two arguments and is unaffected.
 
 and in `deleteTransaction`, immediately after `return db.transaction(async (tx) => {` and before the `touched` query:
 
@@ -1336,7 +1409,7 @@ git commit -m "feat(feoh): import pipeline - dedup, rules, inbox, booking via re
 
 **Interfaces:**
 - Consumes: `getTransactionSourceProvider()` (Task 3), `ingest()` (Task 5), `feohImportState` (Task 2), `SourceProviderError`
-- Produces: `FEED_KEY = 'firefly:transactions'`, `PAGE_LIMIT = 100`, `runImportTick(): Promise<ImportTickResult>`, `classifySourceError(e): string`, `getImportStatus(): Promise<ImportStatusView>`, `ImportTickResult = { ok: boolean; pages: number; inserted: number; booked: number; skipped: number; error?: string }`, `ImportStatusView = { enabled: boolean; pendingCount: number; feed: { feedKey; hasCursor: boolean; lastSuccessAt: string | null; lastError: string | null; consecutiveFailures: number } | null }`
+- Produces: `FEED_KEY = 'firefly:transactions'`, `PAGE_LIMIT = 100`, `runImportTick(): Promise<ImportTickResult>` (answers `error: 'provider_unavailable' | 'already_running'` without touching feed state), `classifySourceError(e): string`, `getImportStatus(): Promise<ImportStatusView>`, `ImportTickResult = { ok: boolean; pages: number; inserted: number; booked: number; skipped: number; error?: string }`, `ImportStatusView = { enabled: boolean; currency: string; pendingCount: number; feed: { feedKey; hasCursor: boolean; lastSuccessAt: string | null; lastError: string | null; consecutiveFailures: number } | null }`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1453,6 +1526,25 @@ describe('runImportTick', () => {
   });
 });
 
+describe('runImportTick — one at a time', () => {
+  it('a second tick while one is running answers already_running and leaves the feed state alone', async () => {
+    await seedTestHousehold();
+    const fake = new FakeSource();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const original = fake.listSince.bind(fake);
+    fake.listSince = async (cursor, limit) => { await gate; return original(cursor, limit); };
+    setTransactionSourceProvider(fake);
+    const first = runImportTick();
+    const second = await runImportTick();
+    expect(second.error).toBe('already_running');
+    release();
+    expect((await first).ok).toBe(true);
+    expect((await state()).consecutiveFailures).toBe(0);
+    expect((await state()).lastError).toBeNull();
+  });
+});
+
 describe('classifySourceError', () => {
   it('maps provider reasons, TypeError to network_error, everything else to error', () => {
     expect(classifySourceError(new SourceProviderError('rate_limited'))).toBe('rate_limited');
@@ -1464,7 +1556,7 @@ describe('classifySourceError', () => {
 describe('getImportStatus', () => {
   it('reports disabled + no feed before any tick, and never the cursor text', async () => {
     const before = await getImportStatus();
-    expect(before).toEqual({ enabled: false, pendingCount: 0, feed: null });
+    expect(before).toEqual({ enabled: false, currency: 'EUR', pendingCount: 0, feed: null });
     await seedTestHousehold();
     const fake = new FakeSource();
     fake.rows = [fakeLine({ sourceId: '5:1' })];
@@ -1494,8 +1586,9 @@ import { logError } from '@wyrhta/core/lib';
 import { db } from '../../../db/index.js';
 import { feohImportState, feohImportedTransactions, type ImportState } from './schema.js';
 import { getTransactionSourceProvider } from './provider.js';
-import { SourceProviderError } from './providers/types.js';
+import { SourceProviderError, type TransactionSourceProvider } from './providers/types.js';
 import { ingest } from './service.js';
+import { config } from '../../../config/env.js';
 
 export const FEED_KEY = 'firefly:transactions';
 export const PAGE_LIMIT = 100;
@@ -1544,16 +1637,30 @@ async function saveFailure(feedKey: string, reason: string): Promise<void> {
   }).where(eq(feohImportState.feedKey, feedKey));
 }
 
+/** One tick at a time per process: the scheduler and the manual trigger share this. */
+let running = false;
+
 /**
  * One tick (spec §3). Pull pages from the persisted cursor, ingest each page,
  * and advance the cursor ONLY after the whole page is written. A dead tick
  * replays its last page harmlessly (dedup on source_id). Never throws.
+ * `already_running` and `provider_unavailable` are answered without touching
+ * the feed state — neither is a feed failure.
  */
 export async function runImportTick(): Promise<ImportTickResult> {
   const result: ImportTickResult = { ok: false, pages: 0, inserted: 0, booked: 0, skipped: 0 };
   const provider = getTransactionSourceProvider();
   if (!provider) return { ...result, error: 'provider_unavailable' };
+  if (running) return { ...result, error: 'already_running' };
+  running = true;
+  try {
+    return await runSweep(provider, result);
+  } finally {
+    running = false;
+  }
+}
 
+async function runSweep(provider: TransactionSourceProvider, result: ImportTickResult): Promise<ImportTickResult> {
   const state = await getOrCreateState(FEED_KEY);
   let cursor = state.cursor;
   try {
@@ -1587,6 +1694,8 @@ export async function runImportTick(): Promise<ImportTickResult> {
 
 export interface ImportStatusView {
   enabled: boolean;
+  /** The household's one currency (`FEOH_CURRENCY`) — the web reads it from here, never hard-codes it. */
+  currency: string;
   pendingCount: number;
   feed: {
     feedKey: string;
@@ -1604,6 +1713,7 @@ export async function getImportStatus(): Promise<ImportStatusView> {
     .from(feohImportedTransactions).where(eq(feohImportedTransactions.status, 'pending'));
   return {
     enabled: getTransactionSourceProvider() !== null,
+    currency: config.feohCurrency,
     pendingCount: count,
     feed: feed
       ? {
@@ -1840,9 +1950,15 @@ describe('parseTransactionsPage (fixture contract)', () => {
     expect(lines[0]).toMatchObject({ payee: 'Kiosk', memo: null });
   });
 
-  it('rejects a body that is not a Firefly page with bad_response', () => {
+  it('rejects a body that is not a Firefly page, or a journal without ids/currency, with bad_response', () => {
     expect(() => parseTransactionsPage({ hello: 'world' })).toThrow(SourceProviderError);
     try { parseTransactionsPage('<html>'); } catch (e) { expect((e as SourceProviderError).reason).toBe('bad_response'); }
+    const journal = { type: 'withdrawal', date: '2026-09-01T00:00:00+02:00', amount: '1.00', currency_code: 'EUR', description: 'x', source_id: '7', destination_id: '2' };
+    const page = (id: unknown, j: Record<string, unknown>) => ({ data: [{ id, attributes: { transactions: [j] } }], meta: { pagination: { total_pages: 1 } } });
+    expect(() => parseTransactionsPage(page('', { ...journal, transaction_journal_id: '9' }))).toThrow(/ids/);
+    expect(() => parseTransactionsPage(page('5', { ...journal, transaction_journal_id: 'abc' }))).toThrow(/ids/);
+    expect(() => parseTransactionsPage(page('5', { ...journal, transaction_journal_id: '9', currency_code: '' }))).toThrow(/currency/);
+    expect(() => parseTransactionsPage(page('5', { ...journal, transaction_journal_id: '9', source_id: '' }))).toThrow(/account id/);
   });
 });
 
@@ -2020,6 +2136,15 @@ export function parseTransactionsPage(json: unknown): { lines: FireflyLine[]; to
       if (type !== 'withdrawal' && type !== 'deposit') continue; // transfers etc. are out of scope
       const direction = type === 'withdrawal' ? 'out' : 'in';
       const journalId = str(j['transaction_journal_id']);
+      // The identifiers ARE the dedup key and the sort key: a blank or
+      // non-numeric one would poison both, so it is a bad response, not a row.
+      if (!/^\d+$/.test(groupId) || !/^\d+$/.test(journalId)) {
+        throw new SourceProviderError('bad_response', 'journal without numeric group/journal ids');
+      }
+      const sourceAccountId = str(direction === 'out' ? j['source_id'] : j['destination_id']);
+      if (!sourceAccountId) throw new SourceProviderError('bad_response', 'journal without an account id');
+      const currency = str(j['currency_code']).trim();
+      if (!currency) throw new SourceProviderError('bad_response', 'journal without a currency');
       const counterparty = str(direction === 'out' ? j['destination_name'] : j['source_name']).trim();
       const description = str(j['description']).trim();
       const payee = counterparty || description || 'Unknown payee';
@@ -2028,12 +2153,12 @@ export function parseTransactionsPage(json: unknown): { lines: FireflyLine[]; to
       const date = calendarDate(j['date']);
       lines.push({
         sourceId: `${groupId}:${journalId}`,
-        sourceAccountId: str(direction === 'out' ? j['source_id'] : j['destination_id']),
+        sourceAccountId,
         date,
         payee,
         memo: description && description !== payee ? description : null,
         amount: Math.round(amountRaw * 100) / 100,
-        currency: str(j['currency_code']) || 'XXX',
+        currency,
         direction,
         key: [date, Number(groupId), Number(journalId)],
       });
@@ -2228,7 +2353,7 @@ git commit -m "feat(feoh): Firefly III ingestion provider with composite waterma
 | Method | Path | Gate | Body / query | Responses |
 |---|---|---|---|---|
 | GET | `/status` | auth | — | `ImportStatusView` |
-| POST | `/sync` | canWrite | — | 200 `ImportTickResult`; 409 `PROVIDER_UNAVAILABLE`; 502 `<REASON>` on a failed tick |
+| POST | `/sync` | canWrite | — | 200 `ImportTickResult`; 409 `PROVIDER_UNAVAILABLE` / `ALREADY_RUNNING`; 502 `<REASON>` on a failed tick |
 | GET | `/accounts` | auth | — | mappings |
 | PUT | `/accounts` | canWrite | `{ sourceAccountId, accountId }` | 200 mapping; 400 `INVALID_REFERENCE` |
 | DELETE | `/accounts/:id` | canWrite | — | `{ id }`; 404 |
@@ -2529,6 +2654,9 @@ export function createIngestionRouter(canWrite: MiddlewareHandler): Hono {
     if (result.ok) return ok(c, result);
     if (result.error === 'provider_unavailable') {
       return err(c, 'PROVIDER_UNAVAILABLE', 'Bank import is disabled (FEOH_IMPORT_ENABLED)', 409);
+    }
+    if (result.error === 'already_running') {
+      return err(c, 'ALREADY_RUNNING', 'A bank import tick is already running', 409);
     }
     // Upstream failed; the tick already recorded it. 502 like the tasks routes do for provider 5xx.
     return c.json({ error: { code: (result.error ?? 'error').toUpperCase(), message: 'Bank import tick failed' } }, 502);
@@ -2960,6 +3088,7 @@ export interface ImportAccountMapping {
 
 export interface ImportStatus {
   enabled: boolean;
+  currency: string;
   pendingCount: number;
   feed: {
     feedKey: string;
@@ -3309,6 +3438,13 @@ describe('ImportInbox', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     await waitFor(() => expect(dismiss).toHaveBeenCalledWith('r1'));
   });
+
+  it('judges "foreign" against the household currency it is given, not EUR', () => {
+    arrange([row({ currency: 'CHF' })]);
+    render(<ImportInbox householdCurrency="CHF" />);
+    expect(screen.queryByText(/cannot be booked/)).not.toBeInTheDocument();
+    expect(screen.getByText(/CHF/)).toBeInTheDocument(); // the amount renders in the row's own currency
+  });
 });
 ```
 
@@ -3392,12 +3528,28 @@ import { ApiError } from '@/api/client';
 
 const selectClass = 'h-9 w-full rounded-md border border-tan bg-card px-3 text-sm';
 
+/**
+ * The shared `formatMoney` is fixed to the household's display currency; an
+ * imported line carries ITS OWN currency (that is the whole point of the
+ * foreign-currency rule), so format with the row's code and fall back to a
+ * plain decimal + code for codes Intl does not know.
+ */
+export function formatAmount(amount: string | number, currency: string, localeCode: string): string {
+  const n = Number(amount);
+  try {
+    return new Intl.NumberFormat(localeCode, { style: 'currency', currency }).format(n);
+  } catch {
+    return `${n.toFixed(2)} ${currency}`;
+  }
+}
+
 interface Props { householdCurrency: string }
 
 function InboxRow({ row, householdCurrency, mappedAccountId }: { row: ImportedTransaction; householdCurrency: string; mappedAccountId: string | undefined }) {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const { formatMoney, formatDate } = useFormatters();
+  const { formatDate, locale } = useFormatters();
+  const localeCode = locale.code ?? 'en-US';
   const envelopes = useEnvelopes().data?.data ?? [];
   const accounts = useAccounts().data?.data ?? [];
   const confirm = useConfirmInboxRow();
@@ -3426,7 +3578,7 @@ function InboxRow({ row, householdCurrency, mappedAccountId }: { row: ImportedTr
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline">{t(`feoh.import.inbox.${row.direction}`)}</Badge>
-          <span className="font-mono">{row.direction === 'out' ? '−' : '+'}{formatMoney(row.amount)} {row.currency}</span>
+          <span className="font-mono">{row.direction === 'out' ? '−' : '+'}{formatAmount(row.amount, row.currency, localeCode)}</span>
         </div>
       </div>
       {foreign && (
@@ -3690,14 +3842,14 @@ And a new card after the `Import / export` card, before the closing `</>`:
               <p className="text-sm text-gray-500">{t('feoh.import.intro')}</p>
               {status && !status.enabled && <p className="text-sm text-gray-500">{t('feoh.import.disabled')}</p>}
               {status?.feed?.lastError && <p className="text-sm text-amber-700">{t('feoh.import.lastError', { reason: status.feed.lastError })}</p>}
-              <ImportInbox householdCurrency={HOUSEHOLD_CURRENCY} />
+              {status && <ImportInbox householdCurrency={status.currency} />}
               <ImportRules />
               <ImportAccounts />
             </CardContent>
           </Card>
 ```
 
-The web has no way to read `FEOH_CURRENCY` today. Add a constant at the top of `feoh.tsx` — `const HOUSEHOLD_CURRENCY = 'EUR';` — with a comment: `// Mirrors the server's FEOH_CURRENCY default. The server is the authority (a mismatching line answers 409 CURRENCY_MISMATCH); this only pre-disables the Book button. Exposing the value over /api/v1/features is a follow-up.` Add that follow-up to the CHANGELOG "Known gaps" list from Task 9 in the same commit.
+The household currency comes from `GET /ingestion/status` (`status.currency`, Task 6) — never hard-coded in the web. The server stays the authority (a mismatching line answers `409 CURRENCY_MISMATCH`); the web value only pre-disables the Book button.
 
 - [ ] **Step 8: Extend the page test's mocks**
 
@@ -3705,7 +3857,7 @@ In `Heorth/web/src/pages/feoh.test.tsx`, add a second `vi.mock` beside the exist
 
 ```ts
 vi.mock('@/hooks/use-feoh-import', () => ({
-  useImportStatus: () => ({ data: { data: { enabled: false, pendingCount: 0, feed: null } }, isError: false, isLoading: false }),
+  useImportStatus: () => ({ data: { data: { enabled: false, currency: 'EUR', pendingCount: 0, feed: null } }, isError: false, isLoading: false }),
   useTriggerSync: () => mutation,
   useImportInbox: () => okList,
   useImportAccounts: () => okList,
@@ -3730,7 +3882,7 @@ Expected: all green (previously 62 files / 338 tests, now more), build succeeds.
 - [ ] **Step 10: Commit (Heorth)**
 
 ```bash
-cd Heorth && git add web/src/components/feoh/import-inbox.tsx web/src/components/feoh/import-inbox.test.tsx web/src/components/feoh/import-rules.tsx web/src/components/feoh/import-rules.test.tsx web/src/components/feoh/import-accounts.tsx web/src/pages/feoh.tsx web/src/pages/feoh.test.tsx web/src/i18n/locales/en.json web/src/i18n/locales/de.json CHANGELOG.md
+cd Heorth && git add web/src/components/feoh/import-inbox.tsx web/src/components/feoh/import-inbox.test.tsx web/src/components/feoh/import-rules.tsx web/src/components/feoh/import-rules.test.tsx web/src/components/feoh/import-accounts.tsx web/src/pages/feoh.tsx web/src/pages/feoh.test.tsx web/src/i18n/locales/en.json web/src/i18n/locales/de.json
 git commit -m "feat(web): Bank import card on the Feoh page - inbox, rules, account mapping (en/de)"
 ```
 
@@ -3843,11 +3995,11 @@ d) Add `firefly_upload:` and `firefly_importer_config:` to the top-level `volume
 
 `deploy/initdb/10-databases.sh` already handles this: when `FIREFLY_DB_PASSWORD` is non-empty it creates role `firefly` and database `firefly` (the prod name), and adds `firefly_dev` only when `CREATE_TEST_DATABASES=true` (the dev stack). Nothing to change there.
 
-Validate: `docker compose -f deploy/compose.prod.yml --env-file deploy/.env.example config --quiet` — with `.env.example` the `:?` variables are blank and compose reports which, so expect failures ONLY on the `:?`-guarded names (`HEORTH_IMAGE_TAG`, passwords, `FIREFLY_APP_KEY`, `FIREFLY_APP_URL`); a YAML or key error is a real failure. Also run `docker compose -f deploy/compose.dev.yml --env-file deploy/.env config --quiet` — expected: silent.
+Validate with a filled throw-away env so `:?` guards do not mask a YAML error: `grep -oE '^[A-Z_]+' deploy/.env.example | sed 's/$/=placeholder/' > "$TMP/prod-check.env"` (use the session scratchpad for `$TMP`), then `docker compose -f deploy/compose.prod.yml --env-file "$TMP/prod-check.env" config --quiet` — expected: silent. Any output is a real error. Also run `docker compose -f deploy/compose.dev.yml --env-file deploy/.env config --quiet` — expected: silent.
 
 - [ ] **Step 3: Seed the demo inbox**
 
-In `deploy/seed-demo.mjs`, inside `seedHeorth()` after the recurring-bills block (search for `count('bills'` or the last `bills` loop) and before the Ethel/Weorc blocks — anywhere after `accId` and `envId` exist and `as`/`token` are in scope:
+In `deploy/seed-demo.mjs`, inside `seedHeorth()`, directly after the recurring-bills loop closes (the loop ending in `count('bills', verdict);`) — that is the point where `accId`, `envId`, `as` and `token` are all in scope. The finance section sits after the Ethel and Weorc blocks in this file; do not move it:
 
 ```js
   // --- feoh: bank import (ADR 0016) ------------------------------------------
