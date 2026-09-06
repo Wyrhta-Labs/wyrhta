@@ -20,7 +20,7 @@
 #      can run alongside the dev stack, the per-repo stacks, and any unrelated
 #      Postgres on 5432.
 #
-# NOTHING HERE REACHES A REAL EXTERNAL SYSTEM. The six M365_* vars are blank
+# NOTHING HERE REACHES A REAL EXTERNAL SYSTEM. The five M365_* vars are blank
 # (all-or-nothing: all blank = integration disabled), KithLedger is the sibling
 # demo container, and the satellite signing key is generated fresh per demo.
 
@@ -101,7 +101,7 @@ services:
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       CORS_ORIGIN: "*"
-      # ALL SIX BLANK = M365 integration disabled. Keep it that way for the
+      # ALL FIVE BLANK = M365 integration disabled. Keep it that way for the
       # demo: a demo must not touch a real tenant or mailbox. Partial presence
       # is a startup error, so do not fill just one.
       M365_TENANT_ID: ""
@@ -109,7 +109,10 @@ services:
       M365_CLIENT_SECRET: ""
       M365_REDIRECT_URI: ""
       M365_FAMILY_MAILBOX: ""
-      M365_SHARED_TODO_LIST: ""
+      # Same for Google: the demo reaches no external system (ADR 0012).
+      GOOGLE_CLIENT_ID: ""
+      GOOGLE_CLIENT_SECRET: ""
+      GOOGLE_REDIRECT_URI: ""
       # KithLedger reminders feed into Heorth. The bootstrap script starts
       # KithLedger first, mints a throwaway household-kinded key into
       # deploy/.env.demo, then starts Heorth with the feed enabled.
@@ -124,7 +127,7 @@ services:
       SATELLITE_SIGNING_ALG: ${SATELLITE_SIGNING_ALG:-EdDSA}
       SATELLITE_AUDIENCES: ${SATELLITE_AUDIENCES:-kithledger}
       # Bank ingestion is OFF here, and pinned literally rather than left unset
-      # for the same reason the six M365_* vars above are: a demo must not
+      # for the same reason the five M365_* vars above are: a demo must not
       # reach a real external system, and there is no Firefly sidecar in this
       # stack to reach (ADR 0016 §8, ADR 0012). seed-demo.mjs fills the import
       # inbox directly, so the inbox and the rules UI still have content.

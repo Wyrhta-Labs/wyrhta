@@ -88,13 +88,20 @@ services:
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       CORS_ORIGIN: "*"
-      # All six, or all blank. Partial presence is a startup error.
+      # All five, or all blank. Partial presence is a startup error.
       M365_TENANT_ID: ${M365_TENANT_ID:-}
       M365_CLIENT_ID: ${M365_CLIENT_ID:-}
       M365_CLIENT_SECRET: ${M365_CLIENT_SECRET:-}
       M365_REDIRECT_URI: ${M365_REDIRECT_URI:-}
       M365_FAMILY_MAILBOX: ${M365_FAMILY_MAILBOX:-}
-      M365_SHARED_TODO_LIST: ${M365_SHARED_TODO_LIST:-}
+      # Google Calendar + Tasks — all three, or all blank. Partial presence is
+      # a startup error. The household list and calendar are designated in
+      # the UI, not by env (there is no M365_SHARED_TODO_LIST any more).
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      # Mirror poll interval for every provider (seconds, floored at 60).
+      INTEGRATIONS_SYNC_INTERVAL_SECONDS: ${INTEGRATIONS_SYNC_INTERVAL_SECONDS:-300}
       # KithLedger reminders feed — both, or both blank. Partial presence
       # is a startup error.
       KITH_BASE_URL: ${KITH_BASE_URL:-}
