@@ -233,3 +233,58 @@ deployment. Phase 3 (deployment) follows after real use validates.
   service starts. The acceptance run used a temporary local edit to 55500; the
   tracked file is unchanged. Worth choosing a host port outside the Windows
   dynamic-exclusion ranges.
+
+## Bank ingestion — Firefly III behind an ingestion provider (ADR 0016), 2026-09-05/06
+
+- Spec `docs/superpowers/specs/2026-08-28-feoh-bank-ingestion-design.md`, plan
+  `docs/superpowers/plans/2026-09-05-feoh-bank-ingestion.md` (13 tasks). Codex
+  reviewed the plan before execution in two rounds (8 findings, all folded in:
+  atomic booking via `recordTransaction(…, tx)` + `FOR UPDATE`, an in-process
+  tick guard, stricter Firefly parsing, currency exposed via the status route,
+  currency-aware amounts, atomic dismiss). Executed subagent-driven across
+  Heorth and the meta repo.
+- Heorth: `src/modules/feoh/import/` — env group `FEOH_IMPORT_ENABLED` /
+  `FIREFLY_BASE_URL` / `FIREFLY_PAT` + `FEOH_CURRENCY` (default EUR); four
+  tables `feoh_import_accounts`, `feoh_import_rules`,
+  `feoh_imported_transactions`, `feoh_import_state` (migration 0028, none of
+  the eight Feoh tables changed); two-method `TransactionSourceProvider` with an
+  in-memory fake; the Firefly III provider (composite `(date, group, journal)`
+  watermark, per-sweep window cache, `start=`+`end=`); the tick that persists the
+  cursor only after a whole page is written; routes under
+  `/api/v1/feoh/ingestion/*`; a gated scheduler; the Bank import card on the Feoh
+  page (en/de). Merged as 57486fe, released and tagged **v0.8.0** (2026-09-06).
+  Backend 91 files / 727 tests, web 66 files / 349 tests, both builds clean.
+- ADJUDICATED at plan time (recorded in the plan's Decisions section): routes
+  live under `/ingestion` (`/feoh/import` was the CSV import); the overlap
+  re-window moved into the provider via a third `SourcePage.checkpoint` field;
+  household currency is `FEOH_CURRENCY`; a manual inbox line
+  (`POST /ingestion/inbox`, `source_id = manual:<id>`) exists so the demo seed
+  can fill the inbox over REST; Firefly transfers are skipped in this slice.
+- Task reviews: 3 fix rounds (Task 5: unbooking also clears the envelope, mapping
+  an account re-applies rules, honest booked counters; Task 6: the tick never
+  rejects even when the state read fails; Task 11: mapping errors toast). Final
+  whole-branch review (opus): 0 critical, 4 important, all fixed in one wave
+  (bounded + cached Firefly window, mapping invalidates the inbox, dismiss and
+  toggle errors surface, poison journals logged by id) and re-reviewed clean.
+- Meta: `compose.prod.yml` gains `firefly` (4001) and `firefly-importer` (4004)
+  against a `firefly` database; `FEOH_CURRENCY` in all three compose files and
+  `.env.example`; `seed-demo.mjs` seeds 1 account mapping, 3 rules and 5 manual
+  lines (two auto-booked, one pending EUR, one pending unmapped, one USD that
+  waits for ever); spec marked shipped; strategy names ADR 0016 the last
+  pre-deployment slice.
+- **ACCEPTANCE: the demo stack ran end to end** (`deploy/demo-up.sh --fresh`):
+  status `enabled=false, currency=EUR, pendingCount=3`; pending = bakery (EUR),
+  market stall (EUR, unmapped), Amazon (USD); a second run reported everything
+  existing; booking the bakery line into Groceries put it in the ledger.
+- Deferred (in the plan workspace ledger, triaged fine-to-defer by the final
+  review): `ingest` is serial per line; the `running` guard is in-process only;
+  `feoh/service.ts` ↔ `import/service.ts` import cycle; list buttons lack
+  distinguishing aria-labels; inbox shows the first 50 lines without paging;
+  `feoh.import.lastSuccess` key is defined but not rendered; deleting a rule
+  loses the "why booked" trail on its rows.
+- FOLLOW-UP before enabling against a real bank: run one sweep against the dev
+  Firefly with more rows than `PAGE_LIMIT` and confirm from its access log that
+  `start=`/`end=` narrow the result set and the request count is linear in
+  pages — the one behaviour no test can assert.
+- Phase 3 (deployment) is next. ADR 0016 named this the last pre-deployment
+  slice; a further one needs its own ADR.
