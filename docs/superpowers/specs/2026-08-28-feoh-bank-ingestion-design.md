@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-28 · **Decision:** [ADR 0016](../../decisions/0016-bank-ingestion-behind-an-ingestion-provider.md)
 
-**Status:** shipped 2026-09-XX (Heorth v0.8.0). Implementation plan:
+**Status:** shipped 2026-09-06 (Heorth v0.8.0). Implementation plan:
 [2026-09-05-feoh-bank-ingestion](../plans/2026-09-05-feoh-bank-ingestion.md).
 Three things settled at implementation time: the routes live under
 `/api/v1/feoh/ingestion/*` (`/feoh/import` was already the CSV import); the
@@ -66,8 +66,15 @@ export interface ImportedTransaction {
 
 export interface SourcePage {
   items: ImportedTransaction[];
-  /** Opaque watermark to pass to the next call. Null means "fully caught up". */
+  /** Opaque watermark for the next call WITHIN this sweep. Null means the sweep is complete. */
   nextCursor: string | null;
+  /**
+   * Opaque watermark to persist once the sweep completes — where the NEXT sweep
+   * starts. The provider re-windows it by its own overlap (banks backdate), so
+   * the caller never does date arithmetic on a cursor. (Added at implementation
+   * time; see the Status note above.)
+   */
+  checkpoint: string;
 }
 
 export interface TransactionSourceProvider {
