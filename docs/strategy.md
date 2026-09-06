@@ -173,7 +173,10 @@ with a REST API and no MCP surface of its own.
 Unordered until Phase 3 learnings land:
 
 - Feoh module growth (in Heorth, ADR 0007): checking accounts for daily
-  life, investments, retirement projection strategies.
+  life, investments, retirement projection strategies. Bank ingestion shipped
+  2026-09 behind ADR 0016 (Firefly III as an optional sidecar; Feoh remains
+  the ledger). Phase 3 deployment is next — ADR 0016 named this the last
+  pre-deployment slice.
 - **Weorc** module growth (OE *weorc* — work, labour; ADR 0014): further growth
   of the domain beyond what Phase 4's first slice already shipped (anchored
   *and* unanchored **Routines**, their completion history, and the one

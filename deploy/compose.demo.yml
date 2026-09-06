@@ -129,6 +129,7 @@ services:
       # stack to reach (ADR 0016 §8, ADR 0012). seed-demo.mjs fills the import
       # inbox directly, so the inbox and the rules UI still have content.
       FEOH_IMPORT_ENABLED: "false"
+      FEOH_CURRENCY: ${FEOH_CURRENCY:-EUR}
     depends_on:
       db:
         condition: service_healthy

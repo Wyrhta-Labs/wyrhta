@@ -124,6 +124,9 @@ services:
       FEOH_IMPORT_ENABLED: ${FEOH_IMPORT_ENABLED:-false}
       FIREFLY_BASE_URL: ${FIREFLY_BASE_URL:-http://firefly:8080}
       FIREFLY_PAT: ${FIREFLY_PAT:-}
+      # The household's one currency (ISO 4217). Imported lines in any other
+      # currency wait in the inbox and are never booked.
+      FEOH_CURRENCY: ${FEOH_CURRENCY:-EUR}
     depends_on:
       db:
         condition: service_healthy

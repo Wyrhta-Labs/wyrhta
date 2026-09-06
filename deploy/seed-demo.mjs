@@ -684,6 +684,62 @@ async function seedHeorth() {
     count('bills', verdict);
   }
 
+  // --- feoh: bank import (ADR 0016) ------------------------------------------
+  // The demo has no Firefly (ADR 0012: no external systems), so the inbox is
+  // filled through the manual-line route, which runs the SAME pipeline a
+  // provider page does: a rule hit books, everything else waits. source_ids
+  // are fixed so the seed stays idempotent (the server prefixes `manual:`).
+  const mappings = [{ sourceAccountId: 'demo-bank:joint', account: 'Joint current account' }];
+  const existingMappings = (await heorth('GET', '/api/v1/feoh/ingestion/accounts', { token })) ?? [];
+  const mappingBySource = new Map(existingMappings.map((m) => [m.sourceAccountId, m]));
+  for (const m of mappings) {
+    const [, verdict] = await ensure(
+      `import mapping ${m.sourceAccountId}`,
+      async () => mappingBySource.get(m.sourceAccountId) ?? null,
+      async () => heorth('PUT', '/api/v1/feoh/ingestion/accounts', { ...as, body: { sourceAccountId: m.sourceAccountId, accountId: accId[m.account] } })
+    );
+    count('import mappings', verdict);
+  }
+
+  const rules = [
+    { pattern: 'rewe', envelope: 'Groceries', priority: 0 },
+    { pattern: 'northern gas', envelope: 'Utilities', priority: 0 },
+    { pattern: 'acme', envelope: 'Income', priority: 0 },
+  ];
+  const existingRules = (await heorth('GET', '/api/v1/feoh/ingestion/rules', { token })) ?? [];
+  const ruleByPattern = new Map(existingRules.map((r) => [r.pattern, r]));
+  for (const r of rules) {
+    const [, verdict] = await ensure(
+      `import rule ${r.pattern}`,
+      async () => ruleByPattern.get(r.pattern) ?? null,
+      async () => heorth('POST', '/api/v1/feoh/ingestion/rules', { ...as, body: { pattern: r.pattern, envelopeId: envId[r.envelope], priority: r.priority } })
+    );
+    count('import rules', verdict);
+  }
+
+  // Five lines: two book by rule (REWE, ACME), one waits for a member (the
+  // bakery has no rule), one is unmapped (a cash line), one is USD and waits
+  // for ever — the case the single-currency rule exists for.
+  const lines = [
+    { sourceId: 'demo-0001', sourceAccountId: 'demo-bank:joint', date: day(-3), payee: 'REWE', memo: 'REWE SAGT DANKE 4711', amount: 63.2, direction: 'out' },
+    { sourceId: 'demo-0002', sourceAccountId: 'demo-bank:joint', date: day(-2), payee: 'ACME GmbH', memo: 'SALARY', amount: 3850, direction: 'in' },
+    { sourceId: 'demo-0003', sourceAccountId: 'demo-bank:joint', date: day(-2), payee: 'Bakery on the corner', memo: null, amount: 7.4, direction: 'out' },
+    { sourceId: 'demo-0004', sourceAccountId: 'demo-bank:cash', date: day(-1), payee: 'Market stall', memo: 'Apples', amount: 5.0, direction: 'out' },
+    { sourceId: 'demo-0005', sourceAccountId: 'demo-bank:joint', date: day(-1), payee: 'Amazon', memo: 'Ebook', amount: 12.0, direction: 'out', currency: 'USD' },
+  ];
+  // `heorth()` returns the response's `data` only (never the status), so the
+  // natural key is the prefixed source_id in a one-shot listing of the inbox.
+  const existingLines = (await heorth('GET', '/api/v1/feoh/ingestion/inbox?limit=100', { token })) ?? [];
+  const lineBySource = new Map(existingLines.map((r) => [r.sourceId, r]));
+  for (const l of lines) {
+    const [, verdict] = await ensure(
+      `import line ${l.sourceId}`,
+      async () => lineBySource.get(`manual:${l.sourceId}`) ?? null,
+      async () => heorth('POST', '/api/v1/feoh/ingestion/inbox', { ...as, body: l })
+    );
+    count('import lines', verdict);
+  }
+
   return { adminToken, memberToken: token, member };
 }
 

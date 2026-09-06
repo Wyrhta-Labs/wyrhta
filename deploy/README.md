@@ -130,6 +130,13 @@ connections, not losing a financial record.
 `APP_URL` must match the URL the browser uses or Firefly answers "invalid host".
 `dev-up.mjs` gets both right; if you fill `deploy/.env` by hand, do not.
 
+**Prod.** `compose.prod.yml` runs the same two containers (`4001` and `4004`)
+against a `firefly` database in the shared cluster; `FIREFLY_DB_PASSWORD`,
+`FIREFLY_APP_KEY` and `FIREFLY_APP_URL` must be set in `deploy/.env`. The token
+is a manual step there (Profile → OAuth → Personal Access Tokens). `FEOH_CURRENCY`
+(default `EUR`) is the household's one currency in every stack; a line in any
+other currency waits in the inbox and is never booked.
+
 ## Demo household
 
 A self-contained, throwaway household for demonstrating or exploring the stack,

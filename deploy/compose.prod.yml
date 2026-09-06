@@ -18,6 +18,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set it in deploy/.env}
       HEORTH_DB_PASSWORD: ${HEORTH_DB_PASSWORD:?set it in deploy/.env}
       KITH_DB_PASSWORD: ${KITH_DB_PASSWORD:?set it in deploy/.env}
+      FIREFLY_DB_PASSWORD: ${FIREFLY_DB_PASSWORD:-}
     volumes:
       # Postgres 18 PGDATA is /var/lib/postgresql/<major>/docker and the
       # declared volume is one level up. Mounting /var/lib/postgresql/data
@@ -92,6 +93,16 @@ services:
       SATELLITE_AUDIENCES: ${SATELLITE_AUDIENCES:-}
       # The reminders feed presents a household-kinded kl_ key (ADR 0004 §2).
       KITH_API_KEY_KIND: ${KITH_API_KEY_KIND:-}
+      # Bank ingestion (ADR 0016). Firefly III is a one-way ingestion provider,
+      # never the ledger. Heorth POLLS the sidecar; no inbound route, no shared
+      # secret. DEFAULTS OFF. In production the personal access token is a
+      # MANUAL step: log in to Firefly, Profile -> OAuth -> Personal Access
+      # Tokens, paste it into deploy/.env as FIREFLY_PAT, set
+      # FEOH_IMPORT_ENABLED=true, recreate heorth and firefly-importer.
+      FEOH_IMPORT_ENABLED: ${FEOH_IMPORT_ENABLED:-false}
+      FIREFLY_BASE_URL: ${FIREFLY_BASE_URL:-http://firefly:8080}
+      FIREFLY_PAT: ${FIREFLY_PAT:-}
+      FEOH_CURRENCY: ${FEOH_CURRENCY:-EUR}
     depends_on:
       db:
         condition: service_healthy
@@ -132,6 +143,56 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # Bank-ingestion sidecar (ADR 0016) — optional. Firefly talks to banks and
+  # nothing else; Feoh stays the system of record. Its database is NOT in the
+  # backup set on purpose: it owns no household-visible data, and a re-import
+  # from the banks recreates it.
+  firefly:
+    image: fireflyiii/core:version-6.6.6
+    environment:
+      APP_KEY: ${FIREFLY_APP_KEY:?exactly 32 characters, set it in deploy/.env}
+      APP_URL: ${FIREFLY_APP_URL:?the URL the operator's browser uses}
+      TRUSTED_PROXIES: "**"
+      SITE_OWNER: ${HEORTH_ADMIN_EMAIL:?set it in deploy/.env}
+      TZ: ${TZ:-Europe/Berlin}
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: firefly
+      DB_USERNAME: firefly
+      DB_PASSWORD: ${FIREFLY_DB_PASSWORD:?set it in deploy/.env}
+    volumes:
+      - firefly_upload:/var/www/html/storage/upload
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4001:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  firefly-importer:
+    image: fireflyiii/data-importer:version-1.9.1
+    environment:
+      FIREFLY_III_URL: http://firefly:8080
+      VANITY_URL: ${FIREFLY_APP_URL:?the URL the operator's browser uses}
+      FIREFLY_III_ACCESS_TOKEN: ${FIREFLY_PAT:-}
+      TRUSTED_PROXIES: "**"
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - firefly_importer_config:/var/www/html/storage/configurations
+    depends_on:
+      firefly:
+        condition: service_started
+    ports:
+      - "4004:8080"
+    restart: unless-stopped
+
   db-backup:
     image: postgres:18-alpine
     environment:
@@ -151,3 +212,5 @@ services:
 volumes:
   db_data:
   db_backups:
+  firefly_upload:
+  firefly_importer_config:

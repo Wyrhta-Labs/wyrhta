@@ -2,6 +2,15 @@
 
 **Date:** 2026-08-28 · **Decision:** [ADR 0016](../../decisions/0016-bank-ingestion-behind-an-ingestion-provider.md)
 
+**Status:** shipped 2026-09-XX (Heorth v0.8.0). Implementation plan:
+[2026-09-05-feoh-bank-ingestion](../plans/2026-09-05-feoh-bank-ingestion.md).
+Three things settled at implementation time: the routes live under
+`/api/v1/feoh/ingestion/*` (`/feoh/import` was already the CSV import); the
+overlap re-window happens inside the provider via a third `SourcePage` field,
+`checkpoint`, so the cursor stays opaque; and the household currency is
+`FEOH_CURRENCY` (default `EUR`). `POST /ingestion/inbox` adds a manual line and
+is how the demo seed fills the inbox.
+
 **Target repos — this is at least two commits**, per `AGENTS.md` ("one change, one
 repo, one commit"): the module, schema, tests and migration land in
 `Wyrhta-Labs/Heorth`; the Compose services and the ports table land in this meta
