@@ -228,9 +228,27 @@ phase:
 
 ```bash
 cp deploy/.env.example deploy/.env
-# Fill in every value. Both JWT secrets must differ.
+# Fill in every value marked REQUIRED. Both JWT secrets must differ.
 docker compose -f deploy/compose.prod.yml --env-file deploy/.env up -d
 ```
+
+**Only the REQUIRED variables have to be filled to get this far.** They are the
+`${VAR:?}`-guarded ones, and compose validates the whole model before starting
+any container, so a single blank one fails the bring-up with nothing running —
+even when the feature it belongs to is deliberately off. Everything else may
+stay blank; the modules that read them register as no-ops.
+
+The **KithLedger reminders block stays blank on the first pass**, necessarily:
+its `kl_` key is minted from a *running* KithLedger. So the order is up first,
+then mint, then fill in `KITH_BASE_URL`, `KITH_PUBLIC_URL` and `KITH_API_KEY`
+together and `docker compose … up -d heorth` again. Filling part of the block
+early is a Heorth startup error, which is why `KITH_API_KEY_KIND` ships
+commented out in the template.
+
+`scripts/check-env-template.mjs` asserts the template and the compose files
+still agree on which variables exist (CI runs it on every change to either).
+It does not know Heorth's env schema — that lives in another repo — so it
+cannot catch a variable missing from *both* files.
 
 ### Registry login (only while the images are private)
 
@@ -308,8 +326,15 @@ Two things follow, and both are deliberate:
 - **`SATELLITE_AUDIENCES` is an allowlist.** A token can only be minted for a
   satellite named there, so adding one is a deliberate deployment change.
 
-Key rotation is documented in Heorth's README; every step needs a restart, since
-keys are cached for the process lifetime.
+Rotation uses the **overlap slot**: `SATELLITE_SIGNING_KEY_SECONDARY` and
+`SATELLITE_SIGNING_KID_SECONDARY` are published in the JWKS but never signed
+with, so they can carry the outgoing key while tokens minted with it are still
+in flight, or the incoming one before it goes active. Being publish-only the
+slot accepts **public** material, which is how retired private material leaves
+the host while its public half stays published. Both compose files pass all
+three `*_SECONDARY` variables through, so a rotation with overlap needs no
+compose edit. The full procedure is in Heorth's README; every step needs a
+restart, since keys are cached for the process lifetime.
 
 ## Databases
 
@@ -437,9 +462,21 @@ backed up separately (and as securely as the dumps themselves).
   Compose file spins up a separate cluster. Moving to this shared one is a
   `pg_dump`/`pg_restore` per database, once.
 - **`docker compose down -v` deletes the data and backup volumes.** Omit `-v`.
-- **Heorth's six `M365_*` vars are all-or-nothing.** All set, or all blank.
-  Partial presence is a startup error.
+- **Heorth's five `M365_*` vars are all-or-nothing.** All set, or all blank.
+  Partial presence is a startup error. (There is no `M365_SHARED_TODO_LIST` any
+  more — the household list is designated in the UI.)
+- **The KithLedger group is four variables, not two.** `KITH_BASE_URL`,
+  `KITH_API_KEY`, `KITH_PUBLIC_URL` and `KITH_API_KEY_KIND` — all set, or all
+  blank. Setting either of the last two alone is a startup error, and the key
+  must be `household`-kinded (`{"name":"heorth-dashboard","kind":"household"}`);
+  a `member` or `ops` key is refused at boot.
 - **Rotating `HEORTH_JWT_SECRET` invalidates stored M365 refresh tokens** — it
   keys their encryption at rest. Members must re-consent.
+- **Leaving `LIBRARY_ENCRYPTION_KEY` blank pins `HEORTH_JWT_SECRET` in place.**
+  Heorth then derives the library credential key from that secret by HKDF (and
+  warns at every boot). Rotating `HEORTH_JWT_SECRET` afterwards makes every
+  stored library credential undecryptable — and unlike the M365 case there is
+  no re-consent path back. Set a dedicated key before storing any library
+  credential: base64 decoding to **exactly 32 bytes**, not hex like the others.
 - **`deploy/.env` is git-ignored and must stay that way.** Check
   `git status --porcelain` before committing anything in `deploy/`.

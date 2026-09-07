@@ -1,0 +1,30 @@
+# Keeps deploy/.env.example and the compose files from drifting apart.
+#
+# This repo has no build and no tests — deploy/ is the only runnable content it
+# tracks (AGENTS.md, "Working mode"), and the template is what an operator
+# actually copies. Node is preinstalled on the runner, so there is nothing to
+# set up beyond the checkout.
+name: env template
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/.env.example'
+      - 'deploy/compose.*.yml'
+      - 'scripts/check-env-template.mjs'
+      - '.github/workflows/env-template.yml'
+  pull_request:
+    paths:
+      - 'deploy/.env.example'
+      - 'deploy/compose.*.yml'
+      - 'scripts/check-env-template.mjs'
+      - '.github/workflows/env-template.yml'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: node scripts/check-env-template.mjs

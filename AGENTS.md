@@ -143,5 +143,10 @@ gets corrected to match, never the reverse.
 
 ## Common commands
 
-There is no build/test here. Git operations against GitHub go through `gh`
-(the credential helper), per global instructions.
+There is no build/test here. The one check is
+`node scripts/check-env-template.mjs`, which asserts `deploy/.env.example` and
+the three compose files agree on which environment variables exist; run it after
+editing either, and CI (`.github/workflows/env-template.yml`) runs it too.
+
+Git operations against GitHub go through `gh` (the credential helper), per
+global instructions.

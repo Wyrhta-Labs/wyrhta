@@ -88,6 +88,9 @@ services:
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       CORS_ORIGIN: "*"
+      # AES-256-GCM key for stored library credentials (base64, exactly 32
+      # bytes). Blank makes Heorth derive one from JWT_SECRET and warn at boot.
+      LIBRARY_ENCRYPTION_KEY: ${LIBRARY_ENCRYPTION_KEY:-}
       # All five, or all blank. Partial presence is a startup error.
       M365_TENANT_ID: ${M365_TENANT_ID:-}
       M365_CLIENT_ID: ${M365_CLIENT_ID:-}
@@ -102,8 +105,8 @@ services:
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
       # Mirror poll interval for every provider (seconds, floored at 60).
       INTEGRATIONS_SYNC_INTERVAL_SECONDS: ${INTEGRATIONS_SYNC_INTERVAL_SECONDS:-300}
-      # KithLedger reminders feed — both, or both blank. Partial presence
-      # is a startup error.
+      # KithLedger reminders feed — all four (with KITH_API_KEY_KIND below),
+      # or all blank. Partial presence is a startup error.
       KITH_BASE_URL: ${KITH_BASE_URL:-}
       KITH_PUBLIC_URL: ${KITH_PUBLIC_URL:-}
       KITH_API_KEY: ${KITH_API_KEY:-}
@@ -114,6 +117,12 @@ services:
       SATELLITE_SIGNING_KEY: ${SATELLITE_SIGNING_KEY:-}
       SATELLITE_SIGNING_KID: ${SATELLITE_SIGNING_KID:-}
       SATELLITE_SIGNING_ALG: ${SATELLITE_SIGNING_ALG:-EdDSA}
+      # The rotation overlap slot: published in the JWKS, never signed with, so
+      # it accepts public material. Both, or both blank, and only alongside an
+      # active key above.
+      SATELLITE_SIGNING_KEY_SECONDARY: ${SATELLITE_SIGNING_KEY_SECONDARY:-}
+      SATELLITE_SIGNING_KID_SECONDARY: ${SATELLITE_SIGNING_KID_SECONDARY:-}
+      SATELLITE_SIGNING_ALG_SECONDARY: ${SATELLITE_SIGNING_ALG_SECONDARY:-}
       # Only satellites named here can be minted for. Adding one is deliberate.
       SATELLITE_AUDIENCES: ${SATELLITE_AUDIENCES:-}
       # The reminders feed presents a household-kinded kl_ key (ADR 0004 §2).
