@@ -57,5 +57,9 @@ independent service, `@wyrhta/core` release discipline.
 
 - Heorth ↔ KithLedger data flow specifics for service contacts (Phase 4) — which
   hang off **Weorc** routines, not off Ethel assets (ADR 0014).
-- The per-plan open questions listed at the end of each file in `plans/`.
+- The per-plan open questions listed at the end of each file in `plans/` —
+  notably **Gewrit's**: what a *household-level* document (an insurance policy, a
+  tax return) hangs on when every Document Link needs exactly one target
+  (ADR 0017 §5), and who owns paperless-ngx's backup once it holds
+  household-visible files.
 - How/when the website correction pass happens (Phase 5+ backlog).

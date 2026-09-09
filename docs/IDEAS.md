@@ -56,6 +56,39 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
 
 <!-- - **<title>** → [`plans/<file>.md`](plans/<file>.md) · YYYY-MM-DD -->
 
+- **Connect paperless-ngx via API, so reference documents hang off transactions,
+  appliances and so on** →
+  [ADR 0017](decisions/0017-paperless-ngx-is-the-document-system-of-record.md)
+  (proposed) + [`plans/gewrit-paperless.md`](plans/gewrit-paperless.md) ·
+  2026-09-09 — **paperless-ngx becomes the household's document system of
+  record**; Heorth stores *links only* and never the bytes, the OCR text or an
+  index of either (which keeps ADR 0006 §1 intact and ADR 0005 about KithLedger
+  notes). The module is **Gewrit** (OE *gewrit* — a writing, deed, charter; no
+  rune, like Weorc), replacing the placeholder name **Office**. Triage found the
+  premise was false: `CONTEXT.md` said documents "stay in Library until Office
+  exists", but Heorth's Library module is a media shelf (Trakt + LibraryThing,
+  `MEDIA_TYPES` book/movie/series) and no schema anywhere has an attachment or
+  document column — so documents never had a home, and Ethel's manuals, Feoh's
+  invoices and Weorc's service reports were all working around the same hole.
+  Shape: this is **ADR 0001's category, fourth instance**, with a new
+  *self-hosted* sub-case (an API token, no tenant, no OAuth) rather than a
+  fourth provider taxonomy; a three-method read-only `DocumentProvider` with the
+  API version pinned (`Accept: application/json; version=10`);
+  `gewrit_document_links` with **typed nullable FKs** (asset, place,
+  transaction, routine, occurrence — exactly one set, ADR 0014's anchor shape)
+  and a `relation` that says what the document is *to that thing*; **no link, no
+  proxy** as the whole authorisation model for streaming preview/thumb/download
+  through Heorth; pull not push (the paperless webhook action exists and is
+  declined) with link rot marked stale rather than deleted. Rejected: letting
+  paperless hold the links in custom fields, deep links into its UI, and its
+  share links. Deferred by choice: capture/upload, suggestion rules, KithLedger
+  person links, meter readings. Also in
+  [`strategy.md`](strategy.md) (Phase 5+) and
+  [`../CONTEXT.md`](../CONTEXT.md) (Gewrit, Document Link, Ethel).
+  **Timing is the honest part:** ADR 0015 §5 and ADR 0016 refuse a third
+  pre-deployment slice, so nothing is built until Phase 3 is deployed — this is
+  a decided shape, not queued work.
+
 - **A name for chores** →
   [ADR 0014](decisions/0014-weorc-owns-recurring-household-work.md) (accepted) ·
   2026-08-24 — the domain is **Weorc** (OE *weorc*, work/labour; **no rune** —

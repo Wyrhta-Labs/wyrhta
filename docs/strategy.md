@@ -200,8 +200,20 @@ Unordered until Phase 3 learnings land:
 - Calendar write-back (provider phase 2).
 - Provider matrix: Google Calendar, CalDAV; Google Tasks and the partner task
   project.
-- **Office** module: household document management (until then, documents stay
-  in Library).
+- **Gewrit** module (OE *gewrit* — a writing, document, deed; ADR 0017): the
+  household's reference documents, with **paperless-ngx** as their system of
+  record and Heorth storing only *links* — the boiler's manual on the boiler,
+  the invoice on the Feoh transaction, the service report on the Weorc
+  occurrence. Replaces the placeholder name "Office" and the claim that
+  documents "stay in Library" (Library is a media shelf; documents have never
+  had a home). Behind a `DocumentProvider` per
+  [ADR 0001](decisions/0001-external-systems-of-record-behind-providers.md)'s
+  category — a **self-hosted** system of record, so no tenant and no OAuth, just
+  a household API token. Heorth never stores or indexes the bytes.
+  Decision: [ADR 0017](decisions/0017-paperless-ngx-is-the-document-system-of-record.md)
+  (proposed); plan: [Gewrit — reference documents from paperless-ngx](plans/gewrit-paperless.md).
+  **Explicitly after Phase 3**: ADR 0015 §5 and ADR 0016 refuse a third
+  pre-deployment slice, and this is not one.
 - Identity Phase B: Heorth-issued member JWTs; satellite UIs.
 - Hearth View device tokens (wall display without login ceremony).
 - Android PWA polish. (Localisation moved into Phase 2 scope, 2026-07-27 —
