@@ -81,9 +81,20 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
   rule it adds — Weorc owns work whose **existence is derived from a household
   fact**, recurring or not; "buy milk" stays a Task — is what keeps that door
   from swinging, and the mode is not Feoh-specific: Wyrtgeard's "sow by" is the
-  next consumer. Also in [`strategy.md`](strategy.md) (Phase 5+, Feoh and Weorc
-  growth) and [`../CONTEXT.md`](../CONTEXT.md) (Subscription, Committed Spend,
-  Deadline, Routine). **Not startable:** Phase 5+, after Phase 3 deployment.
+  next consumer. **Settled 2026-09-09 as the spec was reviewed:** the default
+  horizon is **24 months** (a yearly bill appears twice, which is what makes an
+  annual commitment legible), the cancel-by date is **derived** from the term end
+  minus a stored notice period rather than entered (so it cannot drift when a
+  contract is extended — and the day-of-month clamp already makes "31 December
+  minus 3 months" land on 30 September), and **an ignored deadline keeps
+  nudging** until it is completed or skipped, with skip as the household's "stop
+  asking". That last one costs `TaskProvider` its first new method since it
+  shipped, `rescheduleTask` — the shipped interface can create a task and
+  complete one, but not change one, and the alternatives were duplicate tasks or
+  writing "done" into the household's history for work nobody did. Also in
+  [`strategy.md`](strategy.md) (Phase 5+, Feoh and Weorc growth) and
+  [`../CONTEXT.md`](../CONTEXT.md) (Subscription, Committed Spend, Deadline,
+  Routine). **Not startable:** Phase 5+, after Phase 3 deployment.
   Caveat recorded in the spec — the App Store page was unreachable from the
   authoring session, so Subtrack's feature set is from description and
   familiarity, not a read.

@@ -188,8 +188,10 @@ Unordered until Phase 3 learnings land:
     shown as an *estimate* while the ledger stays single-currency (ADR 0016 §7
     intact). It is a fold over the existing `listOccurrences` engine, **not** a
     second projector. Trial-end and cancel-by dates reach the task inbox through
-    **Weorc's** engine as one-off deadlines —
-    [ADR 0018](decisions/0018-weorc-projects-one-off-deadlines.md) (proposed).
+    **Weorc's** engine as one-off deadlines that keep nudging until they are
+    dealt with or deliberately skipped —
+    [ADR 0018](decisions/0018-weorc-projects-one-off-deadlines.md) (proposed),
+    which costs the task provider interface its first new method.
     Deliberately **not** a balance projection: no expected income is modelled,
     so it says what leaves, never what remains. Spec:
     [Feoh committed-spend forecast](superpowers/specs/2026-09-09-feoh-committed-spend-forecast-design.md).

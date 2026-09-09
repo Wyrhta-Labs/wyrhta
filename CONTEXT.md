@@ -179,8 +179,10 @@ plan, the newspaper. Not a parallel entity: it is a **recurring bill** plus a
 detail row (`feoh_subscriptions`), the same shape a vehicle is an Ethel asset
 plus a detail row. The bill owns payee, amount, cadence and envelope; the detail
 row owns what a bill cannot say — the cancellation URL, a billed foreign
-currency with a hand-maintained rate, the trial end, the minimum term, the
-cancel-by date. Status is **derived** from those dates, never stored.
+currency with a hand-maintained rate, the trial end, the minimum term and its
+notice period. The **cancel-by date is derived** (term end minus notice), not
+stored, so it cannot fall out of step with an extended contract; status is
+likewise derived from the dates.
 _Avoid_: recurring payment (that is the bill), plan, contract
 
 **Committed Spend**:
@@ -205,6 +207,10 @@ Occurrence goes terminal (ADR 0018). A Feoh trial end is the first one; a
 Wyrtgeard "sow by" date will be another. The test for whether something belongs
 here is **provenance, not recurrence** — work derived from a fact the household
 holds is Weorc's; work a member merely thought of is a Task in the provider.
+An ignored Deadline **keeps nudging**: while its Occurrence is open and overdue
+the tick reschedules its Task every few days, and **skipping** is how a member
+says "stop asking" — completing means it was dealt with, so a household never
+has to mark undone work as done to get quiet.
 _Avoid_: reminder, alert, one-time task
 
 **Hearth View**:
