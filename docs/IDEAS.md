@@ -56,6 +56,38 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
 
 <!-- - **<title>** → [`plans/<file>.md`](plans/<file>.md) · YYYY-MM-DD -->
 
+- **A committed-spend forecast for Feoh, like the iOS app Subtrack** →
+  [`specs/2026-09-09-feoh-committed-spend-forecast-design.md`](superpowers/specs/2026-09-09-feoh-committed-spend-forecast-design.md)
+  + [ADR 0018](decisions/0018-weorc-projects-one-off-deadlines.md) (proposed) ·
+  2026-09-09 — subscriptions as a **recurring bill plus a detail row**
+  (`feoh_subscriptions`, the Ethel vehicle pattern), a normalised monthly cost,
+  a forward timeline with a per-envelope breakdown over **every** recurring bill
+  (resolved 2026-09-09: rent and insurance are commitments too, narrowed by a
+  multiselect over **envelopes** — the category Feoh already has, so no
+  `category` column, and a filtered total always travels beside the unfiltered
+  household one), and announced future
+  **price changes** so a forecast spanning one is right rather than merely
+  arithmetic. The forecast is a **fold over the existing `listOccurrences`
+  engine** — override beats price change beats bill amount, booked beats all
+  three — so Feoh does not grow a second projector. Foreign-billed
+  subscriptions carry a declared amount and a hand-maintained rate and are
+  shown as an **estimate**; the ledger stays single-currency, so ADR 0016 §7
+  stands and a future `FxProvider` (ADR 0003's category) would just fill in the
+  rate. Scoped **against** a balance projection: no expected income is
+  modelled, so it says what leaves, never what remains.
+  The cross-cutting half is ADR 0018: **Weorc gains `mode = 'once'`** so a
+  trial-end or cancel-by date reaches the task inbox through the household's one
+  projection engine (ADR 0014) instead of Feoh growing its own. The boundary
+  rule it adds — Weorc owns work whose **existence is derived from a household
+  fact**, recurring or not; "buy milk" stays a Task — is what keeps that door
+  from swinging, and the mode is not Feoh-specific: Wyrtgeard's "sow by" is the
+  next consumer. Also in [`strategy.md`](strategy.md) (Phase 5+, Feoh and Weorc
+  growth) and [`../CONTEXT.md`](../CONTEXT.md) (Subscription, Committed Spend,
+  Deadline, Routine). **Not startable:** Phase 5+, after Phase 3 deployment.
+  Caveat recorded in the spec — the App Store page was unreachable from the
+  authoring session, so Subtrack's feature set is from description and
+  familiarity, not a read.
+
 - **Connect paperless-ngx via API, so reference documents hang off transactions,
   appliances and so on** →
   [ADR 0017](decisions/0017-paperless-ngx-is-the-document-system-of-record.md)

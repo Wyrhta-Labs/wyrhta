@@ -177,6 +177,22 @@ Unordered until Phase 3 learnings land:
   2026-09 behind ADR 0016 (Firefly III as an optional sidecar; Feoh remains
   the ledger). Phase 3 deployment is next — ADR 0016 named this the last
   pre-deployment slice.
+  - **Committed-spend forecast** (subscriptions), the household's own ask,
+    modelled on the iOS app *Subtrack*: a normalised monthly cost per recurring
+    bill, a forward timeline of what falls due with a per-envelope breakdown
+    over **every** recurring bill (rent and insurance included, narrowed by a
+    multiselect over envelopes — Feoh's categories, so no new taxonomy),
+    subscription facts a bill lacks today (trial end, minimum term, cancel-by,
+    the URL you cancel at), announced future price changes so a forecast that
+    spans one is right, and a foreign billed amount with a hand-maintained rate
+    shown as an *estimate* while the ledger stays single-currency (ADR 0016 §7
+    intact). It is a fold over the existing `listOccurrences` engine, **not** a
+    second projector. Trial-end and cancel-by dates reach the task inbox through
+    **Weorc's** engine as one-off deadlines —
+    [ADR 0018](decisions/0018-weorc-projects-one-off-deadlines.md) (proposed).
+    Deliberately **not** a balance projection: no expected income is modelled,
+    so it says what leaves, never what remains. Spec:
+    [Feoh committed-spend forecast](superpowers/specs/2026-09-09-feoh-committed-spend-forecast-design.md).
 - **Weorc** module growth (OE *weorc* — work, labour; ADR 0014): further growth
   of the domain beyond what Phase 4's first slice already shipped (anchored
   *and* unanchored **Routines**, their completion history, and the one
@@ -185,7 +201,12 @@ Unordered until Phase 3 learnings land:
   same projection engine rather than growing a second one. Still explicitly
   **no** points, allowances or rotation mechanics (see Out of scope). Sequenced
   after Phase 3 because which further chores a household actually wants
-  projected is exactly the kind of thing real use reprioritises.
+  projected is exactly the kind of thing real use reprioritises. One extension
+  is already specified: **one-off deadlines** (`mode = 'once'`), so a dated
+  obligation derived from a household fact — Feoh's trial end, later
+  Wyrtgeard's "sow by" — projects through the same engine instead of growing a
+  second one ([ADR 0018](decisions/0018-weorc-projects-one-off-deadlines.md),
+  proposed).
 - **Wyrtgeard** module (OE "plant-yard" — the Garden): a household **plant
   library** (what's growing, where, care notes) plus **Ger** (futhorc ᛄ,
   "harvest") — the grow-your-own-food subfeature: planting-calendar planning,
