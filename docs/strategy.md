@@ -202,11 +202,14 @@ Unordered until Phase 3 learnings land:
   project.
 - **Gewrit** module (OE *gewrit* — a writing, document, deed; ADR 0017): the
   household's reference documents, with **paperless-ngx** as their system of
-  record and Heorth storing only *links* — the boiler's manual on the boiler,
-  the invoice on the Feoh transaction, the service report on the Weorc
-  occurrence. Replaces the placeholder name "Office" and the claim that
-  documents "stay in Library" (Library is a media shelf; documents have never
-  had a home). Behind a `DocumentProvider` per
+  record and Heorth keeping only a *register* of **Filings** — the boiler's
+  manual on the boiler, the invoice on the Feoh transaction, the service report
+  on the Weorc occurrence, and the insurance policy on nothing at all. A
+  Filing's anchor is optional (Weorc's anchor, ADR 0014), and **one page lists
+  the whole register**, anchored and unanchored together. Replaces the
+  placeholder name "Office" and the claim that documents "stay in Library"
+  (Library is a media shelf; documents have never had a home). Behind a
+  `DocumentProvider` per
   [ADR 0001](decisions/0001-external-systems-of-record-behind-providers.md)'s
   category — a **self-hosted** system of record, so no tenant and no OAuth, just
   a household API token. Heorth never stores or indexes the bytes.

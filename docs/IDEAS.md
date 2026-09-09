@@ -74,20 +74,27 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
   *self-hosted* sub-case (an API token, no tenant, no OAuth) rather than a
   fourth provider taxonomy; a three-method read-only `DocumentProvider` with the
   API version pinned (`Accept: application/json; version=10`);
-  `gewrit_document_links` with **typed nullable FKs** (asset, place,
-  transaction, routine, occurrence — exactly one set, ADR 0014's anchor shape)
-  and a `relation` that says what the document is *to that thing*; **no link, no
-  proxy** as the whole authorisation model for streaming preview/thumb/download
-  through Heorth; pull not push (the paperless webhook action exists and is
-  declined) with link rot marked stale rather than deleted. Rejected: letting
-  paperless hold the links in custom fields, deep links into its UI, and its
-  share links. Deferred by choice: capture/upload, suggestion rules, KithLedger
-  person links, meter readings. **A document may stay unlinked** (2026-09-09) —
-  so a household-level document (insurance policy, tax return) gets no link row,
-  Gewrit gets no `householdId` target column, and there is no top-level document
-  list: every view is per entity. Also in
+  a register table `gewrit_filings` whose row is a **Filing** — a document, a
+  `relation` saying what it is *to that thing*, and **typed nullable FK anchors**
+  (asset, place, transaction, routine, occurrence) under an **at-most-one**
+  CHECK, so Weorc's anchor shape (ADR 0014) carries over and an unanchored
+  Filing is a first-class row; **one register page** listing anchored and
+  unanchored Filings together, with the configured `PAPERLESS_HOUSEHOLD_TAG`
+  sweeping documents into the register so an unanchored document is reachable
+  without a member attaching it to anything; **no Filing, no proxy** as the whole
+  authorisation model for streaming preview/thumb/download through Heorth; pull
+  not push (the paperless webhook action exists and is declined) with rot marked
+  stale rather than deleted. Rejected: letting paperless hold the references in
+  custom fields, deep links into its UI, and its share links. Deferred by
+  choice: capture/upload, anchor-suggestion rules, KithLedger person anchors,
+  meter readings.
+  **Two corrections the same day, both recorded in the ADR:** a document may be
+  **unanchored** (so no `householdId` anchor column, and the CHECK relaxed from
+  exactly-one to at-most-one), and — reversing the first pass — Gewrit **does**
+  get a top-level register page, because an unanchored document with no register
+  is unreachable rather than merely unattached. Also in
   [`strategy.md`](strategy.md) (Phase 5+) and
-  [`../CONTEXT.md`](../CONTEXT.md) (Gewrit, Document Link, Ethel).
+  [`../CONTEXT.md`](../CONTEXT.md) (Gewrit, Filing, Ethel).
   **Timing is the honest part:** ADR 0015 §5 and ADR 0016 refuse a third
   pre-deployment slice, so nothing is built until Phase 3 is deployed — this is
   a decided shape, not queued work.

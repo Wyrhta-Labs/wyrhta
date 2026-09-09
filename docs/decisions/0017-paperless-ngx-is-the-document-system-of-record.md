@@ -66,7 +66,7 @@ correspondents are free-form. One could tag a document with the appliance and
 never write a line of Heorth code. Rejected, for reasons that are properties of
 the split rather than of paperless:
 
-1. **A link in the store cannot be joined or enforced.** `gewrit_document_links`
+1. **A reference in the store cannot be joined or enforced.** `gewrit_filings`
    with a real foreign key to `ethel_assets` cascades when the asset is deleted
    and cannot dangle. A custom field holding the integer `42` is a string that
    used to mean something.
@@ -96,8 +96,9 @@ The roadmap entry is **Phase 5+**, and it stays there.
 ## Decision
 
 **Paperless-ngx is the household's system of record for documents. Heorth's new
-**Gewrit** module stores *links* to documents and never stores, copies or
-indexes the bytes.**
+Gewrit module keeps a *register* of the documents the household cares about —
+a reference, a relation, an optional anchor, and nothing else. It never stores,
+copies or indexes the bytes.**
 
 1. **This is ADR 0001's category, fourth instance** — after calendars, tasks and
    (as the counter-example) the ingestion providers of ADR 0016. Documents are
@@ -116,110 +117,153 @@ indexes the bytes.**
    `/api/v1/gewrit/...`, nav label "Gewrit" untranslated in both locales, as
    Feoh and Ethel already are.
 3. **A `DocumentProvider` interface in Heorth-owned types, read-only in v1.**
-   `search(query, page)`, `get(documentId)`, `stream(documentId, rendition)`
-   with `rendition` one of `preview | thumb | download`. No `create`, `update` or
-   `delete` — as in ADR 0016 §2 the one-way street is in the type, not the prose;
+   Five methods: `search(query, page)` and `listTagged(tag, cursor, limit)` to
+   find documents, `get(documentId)` and `getMany(documentIds)` to refresh the
+   register's cache in one round trip (paperless's `id__in` filter, confirmed by
+   the probe), and `stream(documentId, rendition)` with `rendition` one of
+   `preview | thumb | download`. No `create`, `update` or `delete` — as in
+   ADR 0016 §2 the one-way street is in the type, not the prose;
    upload arrives with the capture slice and adds a method then. No paperless
    type crosses the boundary: tags, correspondents and document types come
    across as display strings, never as domain concepts, so a different store
-   (or a plain WebDAV folder) can implement the same three methods.
+   (or a plain WebDAV folder) can implement the same five methods — and a store
+   with no tags implements `listTagged` as an empty list, which degrades the
+   register to manual filing only rather than breaking it.
 4. **The API version is pinned and the mismatch is loud.** Every request sends
    `Accept: application/json; version=10`. The provider reads `X-Api-Version`
    and `X-Version` off the first response, logs them, and classifies a version
    it was not built against as a provider error rather than parsing hopefully.
    Paperless promises a year; the pin is what turns that promise into something
    the household notices before it breaks.
-5. **The link is the domain object, and it is typed.**
-   `gewrit_document_links`: one row per (document, target), holding
-   `documentId integer` (paperless's own id), a `relation`, and **typed nullable
-   foreign keys** — `assetId`, `placeId`, `transactionId`, `routineId`,
-   `occurrenceId` — with a CHECK that exactly one is set, each a real FK with
-   `on delete cascade`. This is ADR 0014's one-kind-of-row shape (the Weorc
-   anchor), not a generic `(entity_type, entity_id)` pair: a polymorphic pair has
-   no foreign key, no cascade, and decays into ids pointing at deleted rows. The
-   cost is explicit — **a new link target is a migration**, not a config change.
+5. **The register is the domain object: a Filing with an *optional* anchor.**
+   `gewrit_filings` — one row per document the household has taken into Gewrit,
+   holding `documentId integer` (paperless's own id), a `relation`, an `origin`,
+   the display cache of §7, and **at most one anchor**: typed nullable foreign
+   keys `anchorAssetId`, `anchorPlaceId`, `anchorTransactionId`,
+   `anchorRoutineId`, `anchorOccurrenceId`, each real and each
+   `on delete cascade`, under a single `num_nonnulls(...) <= 1` CHECK.
+   The vocabulary is borrowed from Weorc on purpose: a Routine anchors to an
+   asset, a place, or **nothing** (ADR 0014), and a Filing does the same, so "the
+   boiler's manual" and "the house insurance policy" are one kind of row. That is
+   ADR 0014's bet, already shipped and already proven once.
+   It is **not** a generic `(entity_type, entity_id)` pair — no foreign key, no
+   cascade, and ids that decay into pointers at deleted rows. Cost, stated: **a
+   new anchor kind is a migration**, not a config change.
+   Uniqueness is five partial unique indexes, one per anchor column with its
+   `IS NOT NULL` predicate, plus a sixth on `documentId` where every anchor is
+   null — so a document is filed at most once against a given thing, and at most
+   once unanchored.
+   **Why "Filing" and not "Link":** a row may have no anchor, so "link" would
+   lie about half the table, and "document" would collide with paperless's own
+   object. A Filing is the household's act of filing something, which may or may
+   not attach it to a thing.
 6. **`relation` is the document's role in the household's model, not its type.**
    A small enum — `manual`, `invoice`, `warranty`, `contract`, `receipt`,
    `report`, `other`. It deliberately overlaps paperless's `document_type` and
    is not derived from it: the same PDF is the `invoice` of a Feoh transaction
-   and the `warranty` of an Ethel asset, and only the link knows which. It is
-   what makes "show me the boiler's manual" answerable without reading the
-   store's taxonomy.
-7. **Display metadata on the link row is a cache and is labelled one.**
+   and the `warranty` of an Ethel asset, and only the Filing knows which. On an
+   unanchored Filing it says what the document is to the household as a whole —
+   `contract` for the insurance policy. It is what makes "show me the boiler's
+   manual" answerable without reading the store's taxonomy.
+7. **Display metadata on the Filing is a cache and is labelled one.**
    `documentTitle`, `documentCreated`, `documentChecksum`, `cachedAt` — enough to
-   render a list without a round trip per row, refreshed by the tick in §9, never
-   authoritative, and **never searched**. Paperless answers every question about
-   a document; the cache only answers "what shall I put on the button".
-8. **Manual linking only in v1. No rules, no auto-link, no inbox.** Search the
-   store from the entity, pick a document, done. This is the deliberate
-   difference from ADR 0016 §4: a bank line *must* be dispositioned or the ledger
-   is wrong, whereas an unlinked document is simply a document, and the store is
-   already a perfectly good place for it. Suggestion rules and capture are named
-   as later slices below, not built.
-   **A document may therefore stay unlinked forever, and that is the answer to
-   the household-level document.** An insurance policy or a tax return belongs
-   to the household rather than to an asset, a transaction or a routine, so it
-   gets no link row and Gewrit gets **no `householdId` target column** — §5's
-   exactly-one-target CHECK stands as written. The consequence is deliberate:
-   Gewrit has *no* top-level document list. Every view is per entity, because a
-   list of everything the household owns on paper is exactly the page paperless
-   already serves its operator (§11).
-9. **Pull, not push; link rot is detected, not prevented.** No webhook — the
-   `WEBHOOK` workflow action exists and is declined, because an inbound route
-   needs a shared secret and buys latency that documents do not need (ADR 0016 §5
-   made the same call for bank lines). A scheduler tick re-reads linked documents
-   in batches, following `src/modules/feoh/import/scheduler.ts`: cursor state,
-   classified errors, a tick that never throws. A document that has been trashed
-   or permanently deleted marks its links **`stale`** with a timestamp instead of
-   deleting them — the household's record that the document *was* linked outlives
-   the store's retention policy, which is ADR 0016 §6's reasoning about a
-   permanent register applied to the same problem. Because paperless has no
-   `id__gt`, a sweep walks `modified__gt` with `ordering=modified`, and since
-   `modified` is not unique the tick **re-reads its boundary timestamp** rather
-   than stepping past it.
-10. **The bytes reach the household through Heorth, and only for a linked
+   render the register without a round trip per row, refreshed by the tick in
+   §10, never authoritative, and **never searched**. Paperless answers every
+   question about a document; the cache only answers "what shall I put on the
+   button".
+8. **One register page lists every Filing, anchored or not.** The household gets
+   a single Gewrit page over `gewrit_filings` — the boiler's manual beside the
+   insurance policy — filterable by `relation`, by anchor kind, by *unanchored
+   only*, and by stale, sorted by the cached document date. It is a plain indexed
+   Heorth query, not a proxied view of paperless's list, which is what the cache
+   in §7 exists for.
+   **This reverses an earlier draft of this ADR**, which said Gewrit would have
+   no top-level list on the grounds that paperless already serves one. That was
+   wrong twice over: the store's list is the operator's UI, which §12 keeps away
+   from the household, and without a register an unanchored document is not
+   merely unlinked but unreachable — "a document may be unanchored" would have
+   meant "a document may be invisible".
+9. **The household tag is the store's opt-in, and the tick materialises it.**
+   One configured tag, `PAPERLESS_HOUSEHOLD_TAG` (default `household`): the tick
+   sweeps documents carrying it and **creates a Filing with `origin = 'tag'`**
+   and `relation = 'other'` for any that has none, which is how a document
+   reaches the register without a member attaching it to anything. When the tag
+   goes away the tick deletes that Filing **only while it is still unanchored** —
+   anchoring it is adoption, and an adopted Filing survives untagging.
+   Materialising beats listing the store live for three reasons: it keeps §11's
+   predicate a single-table lookup, it makes the register one indexed query
+   instead of a paginated proxy, and a paperless outage degrades the page to
+   "possibly stale" rather than empty. `origin` is `manual | tag`, and it exists
+   so the tick can only ever retract what the tick created.
+10. **Pull, not push; rot is detected, not prevented.** No webhook — the
+    `WEBHOOK` workflow action exists and is declined, because an inbound route
+    needs a shared secret and buys latency that documents do not need (ADR 0016 §5
+    made the same call for bank lines). One scheduler tick does both jobs — the
+    tag sweep of §9 and a refresh of every Filing's cache — following
+    `src/modules/feoh/import/scheduler.ts`: cursor state, classified errors, a
+    tick that never throws. A document that has been trashed or permanently
+    deleted marks its Filing **`stale`** with a timestamp instead of deleting it,
+    so the household's record that the document *was* filed outlives the store's
+    retention policy — ADR 0016 §6's permanent-register reasoning, same problem.
+    Because paperless has no `id__gt`, a sweep walks `modified__gt` with
+    `ordering=modified`, and since `modified` is not unique the tick **re-reads
+    its boundary timestamp** rather than stepping past it.
+11. **The bytes reach the household through Heorth, and only for a filed
     document.** Heorth streams `preview/`, `thumb/` and `download/` with the
-    service token and writes nothing to disk. The rule is **no link, no proxy**:
-    the route resolves the requested id through `gewrit_document_links` and
-    returns 404 for an id nobody linked, so a paperless document id is never a
+    service token and writes nothing to disk. The rule is **no Filing, no
+    proxy**: the route resolves the requested id through `gewrit_filings` and
+    returns 404 for an id nobody filed, so a paperless document id is never a
     capability on its own. That rule *is* the authorisation model and is tested
-    as one. Two alternatives were rejected: deep links into paperless's UI (a
-    second login on a kitchen touchscreen, and it makes the store a household
-    surface), and paperless **share links** (an unauthenticated URL that outlives
-    the glance that needed it).
-11. **Paperless's UI is an operator tool, never a household surface** — the same
-    posture ADR 0016 §3 took for Firefly. The consequence is accepted openly:
+    as one — and §9 is what keeps it a single predicate even though the register
+    now holds documents nobody anchored. Two alternatives were rejected: deep
+    links into paperless's UI (a second login on a kitchen touchscreen, and it
+    makes the store a household surface), and paperless **share links** (an
+    unauthenticated URL that outlives the glance that needed it).
+12. **Paperless's UI is an operator tool, never a household surface** — the same
+    posture ADR 0016 §3 took for Firefly. What follows is accepted openly:
     paperless's per-document `owner` and view/change grants are **not** mirrored,
-    so a linked document is visible to every member who can see the entity it
-    hangs on. Therefore **anything private stays unlinked**, and the token Heorth
-    holds should belong to a paperless user that can only see what the household
-    may share. ADR 0004's three-state visibility is KithLedger's graph and does
-    not reach here.
-12. **A link points at the root document; versions are the store's business.**
+    so a filed document is visible to every member who can see it in the register
+    or on the thing it is anchored to. The **tag is therefore the household's
+    publication switch**: Heorth's token can read the whole archive, but Heorth
+    exposes only Filings, so an untagged, unanchored document stays invisible to
+    the household even though the token could fetch it. Two things follow —
+    **anything private stays untagged and unanchored**, and untagging revokes on
+    the next tick rather than instantly. ADR 0004's three-state visibility is
+    KithLedger's graph and does not reach here.
+13. **A Filing points at the root document; versions are the store's business.**
     Heorth never pins a version id, so a manual that gets a revision changes what
     the household sees — which is the desired behaviour and, per the probe, what
     the root-document endpoints already do.
-13. **No document text in Heorth, ever.** OCR content is not copied, not indexed,
+14. **No document text in Heorth, ever.** OCR content is not copied, not indexed,
     not embedded. Search is delegated (`text`, `title_search`, `query`,
     `more_like_id`). This keeps
     [ADR 0006](0006-no-server-side-generative-inference-and-a-conservative-base-db.md)
     §1 intact and kills the pgvector-over-documents temptation before it starts —
     [ADR 0005](0005-semantic-retrieval-with-pgvector.md) stays about KithLedger
-    notes.
-14. **Tools live in `heorth-mcp`** (ADR 0008): `gewrit.search_documents`,
-    `gewrit.list_links`, `gewrit.link_document`, `gewrit.unlink_document`,
+    notes. The register is searchable only over its own cached titles and
+    relations; anything more goes to the store.
+15. **Manual filing only in v1. No suggestion rules, no auto-anchoring.** A
+    member searches the store from a thing, or from the register, and files what
+    they picked; the tag sweep of §9 is the one automatic writer and it never
+    guesses an anchor. This is the deliberate difference from ADR 0016 §4: a bank
+    line *must* be dispositioned or the ledger is wrong, whereas an unanchored
+    Filing is a perfectly good end state. Suggestion rules and capture are named
+    as later slices below, not built.
+16. **Tools live in `heorth-mcp`** (ADR 0008): `gewrit.search_documents`,
+    `gewrit.list_filings`, `gewrit.file_document`, `gewrit.unfile_document`,
     calling Heorth's REST API. Heorth gains no MCP surface, and paperless's own
-    API is **not** exposed to the model — the model gets links and the household's
-    view of them, not a second store to reason about.
-15. **Optional per deployment, and absent from the demo stack.**
-    `GEWRIT_ENABLED` plus `PAPERLESS_URL` and `PAPERLESS_TOKEN` (encrypted at
-    rest like `library_connections.credentials`), all-or-nothing per the
-    `FEOH_IMPORT_ENABLED` precedent. Off means search and the proxy return a
-    classified `provider_unavailable` while reading, creating and deleting link
-    rows keep working — they are pure Heorth writes. Paperless joins the **dev
-    and prod** stacks and **not** the demo stack (ADR 0012), which seeds link
-    rows that render as unavailable — Weorc's "degrades rather than errors"
-    precedent. It reserves dev port **14005**.
+    API is **not** exposed to the model — the model gets the register and the
+    household's view of it, not a second store to reason about.
+17. **Optional per deployment, and absent from the demo stack.**
+    `GEWRIT_ENABLED` plus `PAPERLESS_URL`, `PAPERLESS_TOKEN` (encrypted at rest
+    like `library_connections.credentials`) and `PAPERLESS_HOUSEHOLD_TAG`,
+    all-or-nothing per the `FEOH_IMPORT_ENABLED` precedent. Off means search, the
+    tick and the proxy return a classified `provider_unavailable` while the
+    register still reads, files and unfiles — those are pure Heorth writes, so
+    the page keeps working from its cache. Paperless joins the **dev and prod**
+    stacks and **not** the demo stack (ADR 0012), which seeds Filings that render
+    as unavailable — Weorc's "degrades rather than errors" precedent. It reserves
+    dev port **14005**.
 
 ## Consequences
 
@@ -227,32 +271,43 @@ indexes the bytes.**
   retired.** "Documents stay in Library" described an intention, never a
   behaviour; Library goes back to being what it is, a media shelf.
 - **Ethel's manual-shaped hole closes without Ethel growing a file store.** The
-  v1 spec's exclusion becomes a link rather than a missing feature, and the same
-  move gives Feoh its invoice and Weorc its service report — three domains, one
-  table, no new storage.
+  v1 spec's exclusion becomes a Filing rather than a missing feature, and the
+  same move gives Feoh its invoice and Weorc its service report — three domains,
+  one table, no new storage.
 - **The second bought sidecar arrives, and it differs from the first in the way
   that matters.** Firefly owns no household-visible data (ADR 0016); paperless
   owns the household's **files**. So its backup, retention and upgrade path
   become household concerns, and a Postgres dump of Heorth no longer covers
   everything a member would miss. That is the real price of this decision and it
   is not paid by the sidecar being optional.
-- **Heorth becomes a proxy for someone else's bytes.** The no-link-no-proxy rule
-  in §10 is the whole authorisation story, which makes it exactly the kind of
-  rule that must be a test rather than a convention.
-- **A privacy edge exists by construction** (§11): entity-level visibility, not
-  document-level. Stated rather than mitigated, because mitigating it means
-  mapping members onto paperless users, which ADR 0002 Phase A cannot do.
-- **Link rot becomes visible instead of silent**, at the cost of a `stale` state
-  every list view has to render and a member has to understand.
+- **Heorth becomes a proxy for someone else's bytes.** The no-Filing-no-proxy
+  rule in §11 is the whole authorisation story, which makes it exactly the kind
+  of rule that must be a test rather than a convention.
+- **The register is a second surface with a second failure mode.** The tick of
+  §9 writes rows no member created, so a mis-set tag publishes documents to the
+  household and untagging retracts them a tick later, not at once (§12). That
+  latency is the price of the register being a local query instead of a live
+  proxy, and it is the reason `origin` exists: the tick may only retract what
+  the tick created.
+- **A privacy edge exists by construction** (§12): visibility is per Filing and
+  per anchored entity, never per document as paperless models it. Stated rather
+  than mitigated, because mitigating it means mapping members onto paperless
+  users, which ADR 0002 Phase A cannot do. What makes it liveable is that the
+  household tag, not the token's reach, decides what appears.
+- **Rot becomes visible instead of silent**, at the cost of a `stale` state the
+  register and every entity view have to render and a member has to
+  understand.
 - **No fourth provider taxonomy.** Systems of record (0001), reference feeds
   (0003), ingestion providers (0016) — and a self-hosted sub-case noted on 0001.
   Holding the line here is a deliberate consequence of §1.
-- **A new link target costs a migration** (§5). Assets, places, transactions,
+- **A new anchor kind costs a migration** (§5). Assets, places, transactions,
   routines and occurrences are cheap now because they are one CHECK and five
-  columns; a sixth target would be a schema change, and a KithLedger person is
-  worse than that (see below). The household itself is **not** one of those
-  targets and never becomes one (§8).
-- **The test fake stays cheap** — three read methods carrying no semantics are
+  columns; a sixth kind is a schema change, and a KithLedger person is worse
+  than that (see below). The household itself never becomes an anchor kind — a
+  household document is simply an **unanchored** Filing, which is what §5's
+  at-most-one CHECK buys and what makes the register in §8 necessary rather
+  than decorative.
+- **The test fake stays cheap** — five read methods carrying no semantics are
   faked with an in-memory list plus one checked-in response fixture per
   rendition, and no Python container in CI. This is ADR 0016's §2 consequence
   earned the same way.
@@ -269,19 +324,22 @@ indexes the bytes.**
 
 - **Capture** — upload from the phone PWA (camera → receipt) via
   `post_document`. Cheap to want, not cheap to build: consumption is
-  asynchronous, so the flow is upload → store the returned task UUID as a pending
-  link → resolve it to a document id by polling `/api/tasks/?task_id=` on the
-  tick. It roughly doubles the slice and adds a second write path; it is the
-  obvious slice B.
+  asynchronous, so the flow is upload → store the returned task UUID as a
+  pending Filing → resolve it to a document id by polling
+  `/api/tasks/?task_id=` on the tick. It roughly doubles the slice and adds a
+  second write path; it is the obvious slice B.
 - **Suggestions** — a rules table (paperless tag or correspondent → candidate
-  entity) proposing links for newly consumed documents, confirmed by a member.
+  entity) proposing an *anchor* for newly consumed documents, confirmed by a
+  member. The tag sweep of §9 is deliberately not this: it files a document
+  without ever guessing what it belongs to.
   ADR 0016 §3's rules-in-Heorth pattern applies directly, and nothing about §5's
   schema blocks it.
-- **KithLedger person links** — a document that belongs to a person (a
+- **KithLedger person anchors** — a document that belongs to a person (a
   contractor's contract) cannot take a foreign key: KithLedger is a separate
   service with a separate database. It follows Feoh's party pattern (cache id and
-  display name, never merge) and therefore breaks §5's exactly-one-FK invariant,
-  so it is its own decision.
+  display name, never merge) and therefore cannot be an anchor column at all,
+  breaking §5's typed-FK invariant rather than extending it — so it is its own
+  decision.
 - **Meter readings**, which `CONTEXT.md` listed under Office. They are structured
   household data, not documents; if they get built they belong beside Ethel's
   facilities, not here.
