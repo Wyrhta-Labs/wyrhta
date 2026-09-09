@@ -56,6 +56,49 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
 
 <!-- - **<title>** → [`plans/<file>.md`](plans/<file>.md) · YYYY-MM-DD -->
 
+- **Connect paperless-ngx via API, so reference documents hang off transactions,
+  appliances and so on** →
+  [ADR 0017](decisions/0017-paperless-ngx-is-the-document-system-of-record.md)
+  (proposed) + [`plans/gewrit-paperless.md`](plans/gewrit-paperless.md) ·
+  2026-09-09 — **paperless-ngx becomes the household's document system of
+  record**; Heorth stores *links only* and never the bytes, the OCR text or an
+  index of either (which keeps ADR 0006 §1 intact and ADR 0005 about KithLedger
+  notes). The module is **Gewrit** (OE *gewrit* — a writing, deed, charter; no
+  rune, like Weorc), replacing the placeholder name **Office**. Triage found the
+  premise was false: `CONTEXT.md` said documents "stay in Library until Office
+  exists", but Heorth's Library module is a media shelf (Trakt + LibraryThing,
+  `MEDIA_TYPES` book/movie/series) and no schema anywhere has an attachment or
+  document column — so documents never had a home, and Ethel's manuals, Feoh's
+  invoices and Weorc's service reports were all working around the same hole.
+  Shape: this is **ADR 0001's category, fourth instance**, with a new
+  *self-hosted* sub-case (an API token, no tenant, no OAuth) rather than a
+  fourth provider taxonomy; a three-method read-only `DocumentProvider` with the
+  API version pinned (`Accept: application/json; version=10`);
+  a register table `gewrit_filings` whose row is a **Filing** — a document, a
+  `relation` saying what it is *to that thing*, and **typed nullable FK anchors**
+  (asset, place, transaction, routine, occurrence) under an **at-most-one**
+  CHECK, so Weorc's anchor shape (ADR 0014) carries over and an unanchored
+  Filing is a first-class row; **one register page** listing anchored and
+  unanchored Filings together, with the configured `PAPERLESS_HOUSEHOLD_TAG`
+  sweeping documents into the register so an unanchored document is reachable
+  without a member attaching it to anything; **no Filing, no proxy** as the whole
+  authorisation model for streaming preview/thumb/download through Heorth; pull
+  not push (the paperless webhook action exists and is declined) with rot marked
+  stale rather than deleted. Rejected: letting paperless hold the references in
+  custom fields, deep links into its UI, and its share links. Deferred by
+  choice: capture/upload, anchor-suggestion rules, KithLedger person anchors,
+  meter readings.
+  **Two corrections the same day, both recorded in the ADR:** a document may be
+  **unanchored** (so no `householdId` anchor column, and the CHECK relaxed from
+  exactly-one to at-most-one), and — reversing the first pass — Gewrit **does**
+  get a top-level register page, because an unanchored document with no register
+  is unreachable rather than merely unattached. Also in
+  [`strategy.md`](strategy.md) (Phase 5+) and
+  [`../CONTEXT.md`](../CONTEXT.md) (Gewrit, Filing, Ethel).
+  **Timing is the honest part:** ADR 0015 §5 and ADR 0016 refuse a third
+  pre-deployment slice, so nothing is built until Phase 3 is deployed — this is
+  a decided shape, not queued work.
+
 - **A name for chores** →
   [ADR 0014](decisions/0014-weorc-owns-recurring-household-work.md) (accepted) ·
   2026-08-24 — the domain is **Weorc** (OE *weorc*, work/labour; **no rune** —

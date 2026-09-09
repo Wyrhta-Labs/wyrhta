@@ -45,9 +45,10 @@ estate; counterpart to Feoh's movable wealth): the building as a tree of
 **Places**, the **Assets** in them (appliances, vehicles), the **Facilities** that
 serve them, and the upkeep *facts* that belong to a thing (warranty, the stated
 service interval). Manuals and other documents are explicitly out of scope here
-(the Ethel v1 spec) — they stay in Library until the future **Office** module
-exists. The recurring work itself is **Weorc**, which anchors routines here
-(ADR 0014); service contacts are KithLedger people referenced from a routine.
+(the Ethel v1 spec); they reach an asset as a **Filing** once **Gewrit** exists
+(ADR 0017), and until then they have no home in Heorth at all. The
+recurring work itself is **Weorc**, which anchors routines here (ADR 0014);
+service contacts are KithLedger people referenced from a routine.
 _Avoid_: The Home, house profile, inventory
 
 **Asset**:
@@ -73,9 +74,32 @@ in. Carries the **stated** service interval as documentation; the routine that
 acts on it is **Weorc's** and never reads that field as a trigger (ADR 0014 §4).
 _Avoid_: utility (that is a bill in Feoh), system, installation, amenity
 
-**Office** (future):
-Document management for the household (insurance policies, contracts, meter
-readings). Does not exist yet; until it does, documents stay in Library.
+**Gewrit** (future):
+The household's reference documents as a domain (OE *gewrit* — a writing,
+document, deed, charter; ancestor of modern "writ"; no rune, like Weorc).
+**Paperless-ngx is the system of record** for the files, their OCR and their
+search; Gewrit owns only the **register** — the **Filings** that give a document
+household meaning (ADR 0017). Heorth never stores, copies or indexes the bytes,
+and paperless's web UI is an operator tool, never a household surface. One
+household-facing page lists the whole register, anchored and unanchored
+together. Does not exist yet — Phase 5+, after deployment. Meter readings, once
+listed here, are structured data rather than documents and are not Gewrit's.
+_Avoid_: Office (the old placeholder name), DMS, file manager, attachments
+
+**Filing**:
+The Gewrit entity: the household's row for one document it cares about, carrying
+the **relation** (`manual`, `invoice`, `warranty`, `contract`, `receipt`,
+`report`, `other`) and an **anchor** — an Ethel asset or place, a Feoh
+transaction, a Weorc routine or occurrence, or **nothing at all**, following
+Weorc's anchor (ADR 0014). "The boiler's manual" and "the house insurance
+policy" are therefore one kind of row. The relation says what the document *is
+to that thing*, which is a different fact from its type in the store: the same
+invoice is a transaction's `invoice` and an asset's `warranty`. A document
+reaches the register either because a member filed it or because it carries the
+household tag and the tick swept it in. Cached title and date on the row are a
+cache, never authoritative; a document that leaves the store leaves its Filing
+behind, marked stale.
+_Avoid_: attachment, upload, file, document link (a Filing may have no anchor)
 
 **Provider**:
 A pluggable adapter to an external System of Record (e.g. Microsoft 365 calendar,
