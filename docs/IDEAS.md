@@ -95,7 +95,14 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
   than a bare reschedule, because the deadline's Task also **carries the money**
   ("trial ends 4 Oct, then €13.99/month", marked as an estimate when the rate is
   a hand-maintained one) and a task written once at projection would otherwise
-  keep a price the household has since corrected. Also in
+  keep a price the household has since corrected. **Completing a trial-end
+  deadline hands the member the bill's edit form pre-filled** — confirm or
+  correct, never a blank — with `priceConfirmedAt` making "nobody has checked
+  this" a state the forecast can show, and a deep link in the task's notes
+  because completion normally happens in the task provider where there is no
+  form to open. Specifying that caught a hole: a trial is the bill at its
+  trial price *plus* a price change effective the day after it ends, or the
+  forecast bills the household for months it is not paying for. Also in
   [`strategy.md`](strategy.md) (Phase 5+, Feoh and Weorc growth) and
   [`../CONTEXT.md`](../CONTEXT.md) (Subscription, Committed Spend, Deadline,
   Routine). **Not startable:** Phase 5+, after Phase 3 deployment.

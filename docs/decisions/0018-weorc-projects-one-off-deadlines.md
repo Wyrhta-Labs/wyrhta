@@ -88,9 +88,15 @@ not its owner.**
    holds **no** reference to a routine or an occurrence.
 7. **Feoh writes deadlines through one Weorc service call, never through
    `weorc_*` tables.** `upsertDeadline({ anchorBillId, kind, name, dueOn,
-   leadDays })` is idempotent on `(anchorBillId, kind)`, so editing a trial-end
-   date moves the deadline instead of accumulating them. One writer per table,
-   which is what keeps the module seam a seam.
+   leadDays, nudgeEveryDays, notes })` is idempotent on
+   `(anchorBillId, kind)`, so editing a trial-end date moves the deadline
+   instead of accumulating them — and the consumer supplies `name` and `notes`,
+   which are what the projected task's title and body are, because the money in
+   them is Feoh's fact to format and not Weorc's to look up. A second,
+   equally narrow call — `completeDeadline(anchorBillId, kind)` — lets a Feoh
+   action close a deadline it has just satisfied (the household confirming a
+   post-trial price), still through Weorc's service and its invariants. One
+   writer per table, which is what keeps the module seam a seam.
 8. **Clearing the fact retracts the deadline.** Removing the trial-end date, or
    marking the subscription cancelled, deactivates the routine and closes its
    open occurrence as `skipped` — which is the existing terminal path, so the

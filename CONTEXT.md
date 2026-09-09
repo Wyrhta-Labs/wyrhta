@@ -182,7 +182,11 @@ row owns what a bill cannot say — the cancellation URL, a billed foreign
 currency with a hand-maintained rate, the trial end, the minimum term and its
 notice period. The **cancel-by date is derived** (term end minus notice), not
 stored, so it cannot fall out of step with an extended contract; status is
-likewise derived from the dates.
+likewise derived from the dates. A **trial** is the bill at its trial price plus
+a price change effective the day after the trial ends, so free months forecast
+as free; once that date passes the subscription **needs its price confirmed**,
+and the household confirms or corrects it on a pre-filled form rather than
+Heorth writing an amount by itself.
 _Avoid_: recurring payment (that is the bill), plan, contract
 
 **Committed Spend**:
