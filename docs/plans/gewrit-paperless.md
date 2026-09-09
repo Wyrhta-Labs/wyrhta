@@ -207,13 +207,15 @@ paperless, including a Heorth reference in a custom field; meter readings.
    correspondents the household actually uses?** If yes, slice A's picker should
    be shaped around that vocabulary rather than a bare search box, and the live
    probe should sample it.
-2. **Which entity does a *household* document hang on?** An insurance policy or
-   a tax return belongs to the household, not to an asset, a transaction or a
-   routine — and the CHECK in §5 demands exactly one target. Either the
-   household gets a sixth target column (a link with `householdId` set, which is
-   a singleton and therefore almost a boolean), or such documents stay unlinked
-   in the store until Gewrit grows its own top-level list. **Unresolved, and the
-   most likely reason slice A's schema needs one more column.**
+2. ~~Which entity does a *household* document hang on?~~ **Resolved 2026-09-09:
+   it hangs on nothing — documents can be unlinked.** An insurance policy or a
+   tax return stays in paperless with no link row, and Gewrit gets **no
+   `householdId` target column**. The CHECK in §5 keeps exactly-one-target, so
+   slice A's schema needs no extra column, and the picker never has to offer
+   "the household" as a thing to attach to. What follows from it: Gewrit's list
+   views are always *per entity* — there is no Gewrit index page listing every
+   household document, because that page is paperless's own UI, which the
+   operator has and the household does not need (ADR 0017 §11).
 3. **Thumbnail cost on the Hearth View.** If `thumb/` is a per-document round trip
    through Heorth, an asset list with twenty manuals is twenty proxied requests.
    Resolve with the probe: if thumbs are small and cacheable, a short-lived

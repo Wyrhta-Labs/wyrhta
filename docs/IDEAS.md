@@ -82,7 +82,10 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
   declined) with link rot marked stale rather than deleted. Rejected: letting
   paperless hold the links in custom fields, deep links into its UI, and its
   share links. Deferred by choice: capture/upload, suggestion rules, KithLedger
-  person links, meter readings. Also in
+  person links, meter readings. **A document may stay unlinked** (2026-09-09) —
+  so a household-level document (insurance policy, tax return) gets no link row,
+  Gewrit gets no `householdId` target column, and there is no top-level document
+  list: every view is per entity. Also in
   [`strategy.md`](strategy.md) (Phase 5+) and
   [`../CONTEXT.md`](../CONTEXT.md) (Gewrit, Document Link, Ethel).
   **Timing is the honest part:** ADR 0015 §5 and ADR 0016 refuse a third

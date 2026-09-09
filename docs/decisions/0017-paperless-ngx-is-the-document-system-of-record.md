@@ -156,6 +156,14 @@ indexes the bytes.**
    is wrong, whereas an unlinked document is simply a document, and the store is
    already a perfectly good place for it. Suggestion rules and capture are named
    as later slices below, not built.
+   **A document may therefore stay unlinked forever, and that is the answer to
+   the household-level document.** An insurance policy or a tax return belongs
+   to the household rather than to an asset, a transaction or a routine, so it
+   gets no link row and Gewrit gets **no `householdId` target column** — §5's
+   exactly-one-target CHECK stands as written. The consequence is deliberate:
+   Gewrit has *no* top-level document list. Every view is per entity, because a
+   list of everything the household owns on paper is exactly the page paperless
+   already serves its operator (§11).
 9. **Pull, not push; link rot is detected, not prevented.** No webhook — the
    `WEBHOOK` workflow action exists and is declined, because an inbound route
    needs a shared secret and buys latency that documents do not need (ADR 0016 §5
@@ -241,8 +249,9 @@ indexes the bytes.**
   Holding the line here is a deliberate consequence of §1.
 - **A new link target costs a migration** (§5). Assets, places, transactions,
   routines and occurrences are cheap now because they are one CHECK and five
-  columns; the sixth target is a schema change, and a KithLedger person is worse
-  than that (see below).
+  columns; a sixth target would be a schema change, and a KithLedger person is
+  worse than that (see below). The household itself is **not** one of those
+  targets and never becomes one (§8).
 - **The test fake stays cheap** — three read methods carrying no semantics are
   faked with an in-memory list plus one checked-in response fixture per
   rendition, and no Python container in CI. This is ADR 0016's §2 consequence
