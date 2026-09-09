@@ -31,6 +31,11 @@ In scope:
   "€139/year" comparable on one screen.
 - A **forward timeline** of what falls due, by month, with a total per month and
   a breakdown by envelope.
+- **Every recurring bill, not only the subscription-shaped ones** — rent,
+  insurance and the mortgage are commitments too, and a forecast that omits them
+  answers a smaller question than the household asked. Narrowing is the reader's
+  job, not the engine's: the forecast takes a **multiselect category filter**
+  (§5).
 - **Subscription facts** a bill does not carry today: the service's URL, its
   billed currency, a trial end, a minimum-term end, a cancel-by date, whether it
   has been cancelled.
@@ -45,7 +50,7 @@ Out of scope, decided rather than forgotten:
   what remains. Projecting an account balance needs expected *income* modelled,
   and a projection missing income is not conservative, it is wrong. The engine in
   §4 is written so an income row kind is an addition, not a rewrite.
-- **No live FX** (§5). **No income, no salary, no variable-cost estimation.**
+- **No live FX** (§6). **No income, no salary, no variable-cost estimation.**
 - **No auto-detection of subscriptions** from imported bank lines — a real
   temptation given ADR 0016's inbox, and deferred to §9.
 - **No per-member split of a subscription.** `expense_splits` exists for booked
@@ -149,8 +154,9 @@ export function monthlyEquivalent(amount: number, cadence: Cadence): number;
 
 export interface ForecastBucket {
   month: string;              // YYYY-MM
-  committed: number;          // sum of expected amounts due in the month
-  estimated: boolean;         // true if any line is an FX estimate (§5)
+  committed: number;          // sum of expected amounts due in the month, AFTER the filter
+  householdCommitted: number; // the same month unfiltered — see §5
+  estimated: boolean;         // true if any line is an FX estimate (§6)
   byEnvelope: { envelopeId: string | null; name: string; amount: number }[];
   lines: ForecastLine[];      // one per occurrence
 }
@@ -183,7 +189,53 @@ Rules:
    default for its own callers).
 7. **Cents, not floats, for every sum**, following `ledger.ts`'s `toCents`.
 
-## 5. Currency
+## 5. The category filter (multiselect)
+
+**The category is the envelope.** Feoh already groups spending into `envelopes`
+(name, monthly budget, tone) and `recurring_bills.envelopeId` already points at
+one. A `category` column on a bill would be a second taxonomy that starts
+agreeing with the envelope and stops within a month — so there is none, and
+"select categories" means "select envelopes".
+
+The rules, because a filter that quietly changes what a total means is worse
+than no filter:
+
+1. **Absent means all.** No filter parameter is the default, and the default is
+   every recurring bill — subscriptions, rent, insurance, the mortgage. This is
+   the household's answer to what a forecast is *for*.
+2. **The parameter is one comma-separated list**, `envelopes=<uuid>,<uuid>,none`,
+   where the sentinel **`none` selects bills with no envelope**. An unbudgeted
+   bill is exactly the kind a household forgets, so it must be selectable rather
+   than invisible.
+3. **An empty list is rejected** (`400`), never silently read as "all" or as
+   "nothing". `envelopes=` is a bug in the caller, and guessing which of the two
+   opposite meanings was intended is how a wrong number reaches a wall display.
+4. **Every bucket carries both totals.** `committed` is filtered;
+   `householdCommitted` is the same month with no filter applied. A filtered
+   view can therefore always say "€180 of €412", and no screen can accidentally
+   present a partial number as the household's whole commitment.
+5. **`unforecastable` respects the filter too**, so the count beside a filtered
+   total describes the filtered set.
+6. **The filter matches the *bill's* envelope, always — including for booked
+   occurrences.** A member who books a charge against a different envelope by
+   hand makes the ledger and the forecast disagree for that line, and the
+   forecast follows the bill. Accepted deliberately: the forecast is about the
+   *commitment*, which is the bill's fact, and following postings instead would
+   make a line enter and leave the filter depending on how somebody booked it.
+   The ledger remains the truth about what happened; this view is about what is
+   owed.
+7. **Filtering and grouping are independent.** `groupBy=envelope` on a filtered
+   forecast groups what survived the filter; neither implies the other.
+8. **The selection lives in the URL, not on the server.** It is a query
+   parameter the web page keeps in its route (and in the client only), so a
+   filtered forecast is bookmarkable and can be pinned on the wall display.
+   Server-side saved views are deferred (§10) — they need a settings table and
+   nothing yet earns it.
+9. **The Hearth View tile always uses the unfiltered total.** A glanceable
+   number that silently excludes the mortgage is a lie by omission. Filtering is
+   a thing you do while looking at the Feoh page on purpose.
+
+## 6. Currency
 
 Feoh has no currency column and this feature does not add one to the ledger —
 ADR 0016 §7 stands. What it adds is a **declared foreign price and a
@@ -205,7 +257,7 @@ only:
   built here and needs its own ADR; the `fxRate`/`fxRateAsOf` pair is exactly
   what such a provider would later fill in, which is why it is shaped that way.
 
-## 6. Deadlines through Weorc
+## 7. Deadlines through Weorc
 
 Per ADR 0018, Feoh does not project anything itself. On create and on every edit
 of a subscription, Feoh calls `upsertDeadline` once per date it wants surfaced:
@@ -224,12 +276,14 @@ of a subscription, Feoh calls `upsertDeadline` once per date it wants surfaced:
 - The routine's anchor is the bill (`anchorBillId`), so Weorc's own views can
   say where the deadline came from.
 
-## 7. REST surface
+## 8. REST surface
 
 ```
 GET    /api/v1/feoh/forecast?from=&to=&groupBy=month|envelope|payee
-                                                  # buckets, totals, lines,
-                                                  #   unforecastable count
+                             &envelopes=<uuid>,<uuid>,none
+                                                  # buckets, filtered + household
+                                                  #   totals, lines,
+                                                  #   unforecastable count (§5)
 GET    /api/v1/feoh/subscriptions                 # bill + subscription detail, with
                                                   #   monthlyEquivalent and derived status
 POST   /api/v1/feoh/bills/:id/subscription        # attach/replace the detail row
@@ -243,12 +297,15 @@ DELETE /api/v1/feoh/price-changes/:id
 subscription means creating a bill and attaching a detail row, exactly as
 recording a vehicle means recording an asset. `POST /feoh/bills` is unchanged.
 
-## 8. Surfaces
+## 9. Surfaces
 
 - **Feoh web page, new "Forecast" tab:** committed total for the next 12 months
-  as a monthly bar, the per-month breakdown by envelope, and a subscription list
-  sorted by monthly equivalent — which is the screen that answers "what am I
-  paying for that I forgot about".
+  as a monthly bar, the per-month breakdown by envelope, and a bill list sorted
+  by monthly equivalent — which is the screen that answers "what am I paying for
+  that I forgot about". Above it, an **envelope multiselect** (§5) with an
+  *Unbudgeted* entry for `none`, all selected by default, showing "€180 of €412"
+  whenever the selection is partial so the filtered number is never mistaken for
+  the whole.
 - **Hearth View tile:** "€412 committed in the next 30 days", and any deadline
   inside its lead window ("Netflix trial ends in 3 days"). The Hearth View reads
   the forecast; it does not compute one.
@@ -258,10 +315,10 @@ recording a vehicle means recording an asset. `POST /feoh/bills` is unchanged.
 - **i18n:** both locales, per the Phase 2 precedent. "Forecast" and
   "Subscription" are translated; "Feoh" stays untranslated.
 
-## 9. Deferred
+## 10. Deferred
 
 - **Balance projection and runway**, once expected income exists (§1).
-- **An `FxProvider` reference feed** (§5), with its own ADR.
+- **An `FxProvider` reference feed** (§6), with its own ADR.
 - **Subscription detection from the ingestion inbox** — `feoh_imported_transactions`
   holds a payee and a date, so a repeated payee at a regular interval is a
   candidate subscription. Genuinely valuable, and a rules-and-suggestions feature
@@ -270,9 +327,15 @@ recording a vehicle means recording an asset. `POST /feoh/bills` is unchanged.
 - **Price-change history as an audit trail** — today's model holds *announced
   future* changes; it does not record what a bill used to cost before someone
   edited it.
+- **Server-side saved forecast views** (§5.8) — a named envelope selection
+  shared across members and devices. Needs a settings table; the URL carries the
+  selection until something concretely needs more.
+- **A "subscriptions only" filter.** Trivially expressible once §5 exists (the
+  detail row is the predicate), and deliberately not added as a second axis
+  until somebody wants it.
 - **Per-member attribution of a subscription** (§1).
 
-## 10. Testing
+## 11. Testing
 
 - **The nullable interval columns first** (ADR 0018 §3): every existing Weorc
   read path handles `intervalUnit IS NULL`, and a `once` routine with an interval
@@ -288,7 +351,13 @@ recording a vehicle means recording an asset. `POST /feoh/bills` is unchanged.
   bill anchored on the 31st.
 - A skipped occurrence contributes zero and is still listed; an overdue one
   counts in its own month.
-- `cadenceUnknown` bills appear in `unforecastable` and not in any total.
+- `cadenceUnknown` bills appear in `unforecastable` and not in any total, and
+  the count follows the filter.
+- The filter: an absent parameter returns every bill; `envelopes=` is a 400;
+  `none` returns exactly the bills with no envelope; `committed` reflects the
+  selection while `householdCommitted` does not move; a booked occurrence whose
+  transaction was re-enveloped by hand still filters by its **bill's** envelope
+  (§5.6).
 - Currency: a foreign-billed future occurrence is `estimated: true`; the same
   occurrence once booked is `estimated: false` and equals the transaction amount.
 - Deadline upsert is idempotent across two edits; clearing the date skips the
@@ -298,11 +367,14 @@ recording a vehicle means recording an asset. `POST /feoh/bills` is unchanged.
 
 ## Open questions
 
-1. **Does the household want the forecast to include `recurring_bills` that are
-   not subscriptions** — rent, insurance, the mortgage — or only the
-   subscription-shaped ones? The engine treats every bill alike, which is the
-   more useful answer ("what am I committed to") and makes the Hearth View number
-   large. A filter is trivial; the *default* is a product decision.
+1. ~~Does the household want the forecast to include `recurring_bills` that are
+   not subscriptions?~~ **Resolved 2026-09-09: all of them, with a multiselect
+   category filter.** Rent, insurance and the mortgage are commitments and the
+   forecast covers them by default; the reader narrows by **envelope** — the
+   category Feoh already has, so no `category` column is added (§5). The Hearth
+   View number is therefore the household's whole commitment, which is the point
+   of it, and every filtered response carries the unfiltered total beside the
+   filtered one so a partial view cannot masquerade as the total.
 2. **Default forecast horizon: 12 or 24 months?** 12 is proposed. A yearly bill
    makes 24 more informative and the bar chart harder to read.
 3. **Should `cancelByOn` be derived from `termEndsOn` plus a notice period**

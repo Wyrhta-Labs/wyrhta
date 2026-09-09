@@ -179,7 +179,9 @@ Unordered until Phase 3 learnings land:
   pre-deployment slice.
   - **Committed-spend forecast** (subscriptions), the household's own ask,
     modelled on the iOS app *Subtrack*: a normalised monthly cost per recurring
-    bill, a forward timeline of what falls due with a per-envelope breakdown,
+    bill, a forward timeline of what falls due with a per-envelope breakdown
+    over **every** recurring bill (rent and insurance included, narrowed by a
+    multiselect over envelopes — Feoh's categories, so no new taxonomy),
     subscription facts a bill lacks today (trial end, minimum term, cancel-by,
     the URL you cancel at), announced future price changes so a forecast that
     spans one is right, and a foreign billed amount with a hand-maintained rate

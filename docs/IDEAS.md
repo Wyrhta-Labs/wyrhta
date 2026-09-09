@@ -61,7 +61,11 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
   + [ADR 0018](decisions/0018-weorc-projects-one-off-deadlines.md) (proposed) ·
   2026-09-09 — subscriptions as a **recurring bill plus a detail row**
   (`feoh_subscriptions`, the Ethel vehicle pattern), a normalised monthly cost,
-  a forward timeline with a per-envelope breakdown, and announced future
+  a forward timeline with a per-envelope breakdown over **every** recurring bill
+  (resolved 2026-09-09: rent and insurance are commitments too, narrowed by a
+  multiselect over **envelopes** — the category Feoh already has, so no
+  `category` column, and a filtered total always travels beside the unfiltered
+  household one), and announced future
   **price changes** so a forecast spanning one is right rather than merely
   arithmetic. The forecast is a **fold over the existing `listOccurrences`
   engine** — override beats price change beats bill amount, booked beats all

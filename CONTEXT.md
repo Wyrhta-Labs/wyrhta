@@ -188,10 +188,15 @@ What the household has already obliged itself to pay, projected forward: the sum
 of what falls due per month over a horizon, with a per-envelope breakdown and a
 normalised monthly cost per bill. Feoh's **forecast** is exactly this and
 nothing more — it says what *leaves*, never what remains, because no expected
-income is modelled. A future foreign-currency line is an **estimate** and is
-labelled one; a booked one is the transaction's real amount.
+income is modelled. It covers **every recurring bill**, not just subscriptions;
+the reader narrows it with a multiselect over **envelopes**, which are Feoh's
+categories (there is no separate category field), and a filtered view always
+shows the unfiltered household total beside its own. A future foreign-currency
+line is an **estimate** and is labelled one; a booked one is the transaction's
+real amount.
 _Avoid_: budget (that is an envelope), runway, cash flow, projection (reserve
-that for Weorc's projection into the task provider)
+that for Weorc's projection into the task provider), category (as a field name —
+the envelope is the category)
 
 **Deadline**:
 A Weorc **Routine** in `mode = 'once'`: a dated obligation that exists because
