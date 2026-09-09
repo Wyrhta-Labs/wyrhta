@@ -81,9 +81,31 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
   rule it adds — Weorc owns work whose **existence is derived from a household
   fact**, recurring or not; "buy milk" stays a Task — is what keeps that door
   from swinging, and the mode is not Feoh-specific: Wyrtgeard's "sow by" is the
-  next consumer. Also in [`strategy.md`](strategy.md) (Phase 5+, Feoh and Weorc
-  growth) and [`../CONTEXT.md`](../CONTEXT.md) (Subscription, Committed Spend,
-  Deadline, Routine). **Not startable:** Phase 5+, after Phase 3 deployment.
+  next consumer. **Settled 2026-09-09 as the spec was reviewed:** the default
+  horizon is **24 months** (a yearly bill appears twice, which is what makes an
+  annual commitment legible), the cancel-by date is **derived** from the term end
+  minus a stored notice period rather than entered (so it cannot drift when a
+  contract is extended — and the day-of-month clamp already makes "31 December
+  minus 3 months" land on 30 September), and **an ignored deadline keeps
+  nudging** until it is completed or skipped, with skip as the household's "stop
+  asking". That last one costs `TaskProvider` its first new method since it
+  shipped — the shipped interface can create a task and complete one, but not
+  change one, and the alternatives were duplicate tasks or writing "done" into
+  the household's history for work nobody did. The method is `amendTask` rather
+  than a bare reschedule, because the deadline's Task also **carries the money**
+  ("trial ends 4 Oct, then €13.99/month", marked as an estimate when the rate is
+  a hand-maintained one) and a task written once at projection would otherwise
+  keep a price the household has since corrected. **Completing a trial-end
+  deadline hands the member the bill's edit form pre-filled** — confirm or
+  correct, never a blank — with `priceConfirmedAt` making "nobody has checked
+  this" a state the forecast can show, and a deep link in the task's notes
+  because completion normally happens in the task provider where there is no
+  form to open. Specifying that caught a hole: a trial is the bill at its
+  trial price *plus* a price change effective the day after it ends, or the
+  forecast bills the household for months it is not paying for. Also in
+  [`strategy.md`](strategy.md) (Phase 5+, Feoh and Weorc growth) and
+  [`../CONTEXT.md`](../CONTEXT.md) (Subscription, Committed Spend, Deadline,
+  Routine). **Not startable:** Phase 5+, after Phase 3 deployment.
   Caveat recorded in the spec — the App Store page was unreachable from the
   authoring session, so Subtrack's feature set is from description and
   familiarity, not a read.

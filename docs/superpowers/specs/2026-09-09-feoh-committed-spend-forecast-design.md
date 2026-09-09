@@ -102,17 +102,54 @@ feoh_subscriptions
   fxRateAsOf      date
   trialEndsOn   date
   termEndsOn    date                       -- minimum term / contract end
-  cancelByOn    date                       -- last day notice can be given
+  noticeCount   integer                    -- notice period, e.g. 3
+  noticeUnit    text                       -- 'day' | 'week' | 'month'
   cancelledOn   date                       -- set when the household cancelled
+  priceConfirmedAt date                    -- the household confirmed what it costs
+                                           --   now that the trial is over (§7)
   notes         text
 ```
+
+**How a trial is modelled — and a hole this closes.** A trial is the bill at its
+**trial price** (usually `0.00`) plus a **price change** (§3) effective the day
+after `trialEndsOn` carrying the real amount. Nothing else is needed, and
+nothing special-cases a trial in the fold: the resolver already prefers the
+newest price change at or before a due date, so the free months forecast as free
+and the paid ones as paid. An earlier draft of this spec said the bill's amount
+*is* the post-trial price, which would have made the forecast bill the household
+for a trial it is not paying for — the mechanism to avoid that was already in
+the model and simply had to be named.
+
+**`cancelByOn` is not a column — it is derived** (resolved 2026-09-09):
+`cancelBy = shift(termEndsOn, −noticeCount, noticeUnit)`, using the same
+day-of-month clamping `cadence.ts` already applies. That clamp is what makes the
+common German contract come out right without a special case: a term ending
+**31 December** with **3 months'** notice derives **30 September**, because
+September has thirty days. Storing the date instead would let it fall out of
+step with the term end the moment a contract is extended.
 
 Constraints:
 
 - CHECK: `(billedCurrency IS NULL) = (billedAmount IS NULL)` and
   `(billedAmount IS NULL) OR (fxRate IS NOT NULL)` — a foreign amount without a
   rate cannot be forecast, so the schema refuses it rather than guessing 1.0.
-- CHECK: `billedAmount > 0`, `fxRate > 0`.
+- CHECK: `billedAmount > 0`, `fxRate > 0`, `noticeCount > 0`.
+- CHECK: `(noticeCount IS NULL) = (noticeUnit IS NULL)`, and a notice period
+  requires `termEndsOn` — a notice with nothing to count back from derives
+  nothing, so the schema refuses the pair rather than storing a dead fact.
+- **The limitation, stated rather than discovered later:** a notice rule that is
+  not "term end minus a period" — "by the 15th of the preceding month", notice
+  tied to a quarter end — cannot be expressed. The household sets a notice
+  period that makes the derived date land on or before the real one and records
+  the actual wording in `notes`. An explicit override column would fix it and is
+  deferred (§10), because one date entered by hand is exactly what deriving was
+  chosen over.
+- **Where the arithmetic lives:** `shift(date, count, unit)` for `day | week |
+  month` with `cadence.ts`'s clamping rule. Weorc's `recurrence.ts` already has
+  equivalent month arithmetic, so at implementation time this either imports
+  that or both move to `src/lib/` — **it is not copied**. A second month-clamping
+  implementation in the same database is how two modules start disagreeing about
+  what "three months before 31 March" means.
 - No `status` column. Status is derived: `cancelledOn` set → cancelled;
   `trialEndsOn` in the future → in trial; otherwise active. A stored status
   would be a second truth that drifts against the dates.
@@ -165,6 +202,10 @@ export interface ForecastLine {
   billId: string; payee: string; dueDate: string; amount: number;
   source: 'booked' | 'override' | 'price_change' | 'bill';
   currency: string; estimated: boolean; status: OccurrenceStatus;
+  /** The trial ended and nobody has confirmed what it costs now (§7). Distinct
+   *  from `estimated`, which is about an FX rate: this number may be stale in
+   *  either direction and is usually stale LOW. */
+  unconfirmed: boolean;
 }
 ```
 
@@ -183,10 +224,16 @@ Rules:
    explicit `unforecastable` count in the response. Silently dropping them would
    understate the commitment; silently counting one occurrence would invent a
    cadence.
-6. **The horizon is the caller's `to`, capped at 24 months**, reusing the
-   existing cap rather than inventing a second one. Default 12 months (the
-   forecast's natural unit is a year; `listOccurrences` keeps its own 6-month
-   default for its own callers).
+6. **The horizon is the caller's `to`, capped at 24 months, and 24 months is
+   also the default** (resolved 2026-09-09). A yearly bill appears twice, which
+   is what makes an annual commitment legible beside a monthly one — the reason
+   to prefer it over twelve. Two consequences follow and are handled rather than
+   discovered: the default now equals the cap, so the cap only ever bites a
+   caller asking for more (and still answers, capped, rather than erroring); and
+   twenty-four bars need a chart that survives a phone, so the page offers a
+   12/24 toggle with 24 selected (§9). `listOccurrences` keeps its own 6-month
+   default for its own callers — this default belongs to the forecast, not to the
+   engine underneath it.
 7. **Cents, not floats, for every sum**, following `ledger.ts`'s `toCents`.
 
 ## 5. The category filter (multiselect)
@@ -262,17 +309,102 @@ only:
 Per ADR 0018, Feoh does not project anything itself. On create and on every edit
 of a subscription, Feoh calls `upsertDeadline` once per date it wants surfaced:
 
-| Subscription field | Deadline kind | Name | Default `leadDays` |
+| Date | Deadline kind | `leadDays` | `nudgeEveryDays` |
 |---|---|---|---|
-| `trialEndsOn` | `trial_end` | "Decide on <payee> — trial ends" | 7 |
-| `cancelByOn` | `cancel_by` | "Cancel <payee> or it renews" | 21 |
+| `trialEndsOn` | `trial_end` | 7 | 2 |
+| derived cancel-by (§3) | `cancel_by` | 21 | 3 |
+
+**The task carries the money** (resolved 2026-09-09). A reminder that says
+"decide on Netflix" makes the member open Heorth to find out what is at stake;
+one that names the amount can be acted on from the inbox. So Feoh renders both
+the title and the notes and passes them to `upsertDeadline` — Weorc stores them
+on the routine and projects them, and never reads a Feoh table to format money
+(the dependency direction of ADR 0018 §6 is why).
+
+```
+trial_end   title: "Netflix — trial ends 4 Oct, then €13.99/month"
+            notes: "€13.99/month · €167.88/year · envelope: Entertainment
+                    Cancel at https://netflix.com/account"
+
+cancel_by   title: "Cancel Mobile plan by 30 Sep or it renews"
+            notes: "€29.90/month · renews for 12 months from 1 Jan
+                    ≈ €358.80 committed if it renews"
+```
+
+Rules that keep those strings honest:
+
+- **The amount comes from the forecast's own resolver** (§4), for the first
+  occurrence due on or after the deadline's date — so an announced price change
+  is already in the number, and the task and the chart can never disagree. It is
+  not a second lookup of `recurring_bills.amount`.
+- **An estimate says so.** A foreign-billed subscription renders "≈ €12.80
+  (est., rate of 12 Mar)", because a task in someone's inbox carries no tooltip
+  and an unmarked converted number will be read as exact (§6).
+- **The normalised monthly is shown beside the billed amount** whenever the
+  cadence is not monthly — "€167.88/year ≈ €13.99/mo" — since that is the
+  comparison the household is actually making.
+- **Re-upsert triggers are wider than the dates.** Feoh re-renders and
+  re-upserts when `termEndsOn` or the notice period moves the date, **and** when
+  the bill's amount, its cadence, a price change, the envelope or the URL change
+  the text. Weorc's refresh half of the nudge pass (ADR 0018 §11) then amends the
+  already-created task, so a corrected price reaches the inbox rather than
+  sitting in Heorth being right.
+- **No price is ever guessed.** If no post-trial amount is recorded — no price
+  change and a zero bill amount — the title omits the money and the notes say
+  "amount not recorded". A fabricated figure in a task is worse than a missing
+  one.
+
+### Completing a trial-end deadline confirms the price
+
+Resolved 2026-09-09. Completing the `trial_end` deadline hands the member the
+bill's edit form, **pre-filled with the amount already on record** — so the
+action is *confirm or correct*, never fill in a blank. Three things make that
+work wherever the completion happens:
+
+1. **`priceConfirmedAt` is the state, and the flag is derived.** A subscription
+   whose `trialEndsOn` has passed and whose `priceConfirmedAt` is null or older
+   than it **needs confirming**; the forecast marks every line of that bill
+   `unconfirmed: true` (§4) while still counting the recorded amount. This is
+   what closes the gap: the number stays in the total, and the household can see
+   that it is the number nobody has checked.
+2. **Completion usually happens in the task provider, where there is no form to
+   open.** A member ticks the task on their phone and Heorth finds out on the
+   next hourly tick, headless — so the prompt cannot be a modal at the moment of
+   completion. It is a **persistent state**: the Feoh page shows a confirm
+   banner, the forecast flags the lines, and the Hearth View tile mentions it
+   until it is dealt with. The task's own notes carry the deep link
+   (`/feoh/bills/:id?confirmPrice=1`), so ticking it on the phone leaves the way
+   back right there — the notes are Feoh-rendered anyway (§7).
+3. **Confirming writes both sides through the owning module.** The confirm
+   action stamps `priceConfirmedAt` (a pure Feoh write) and, if the deadline's
+   occurrence is still open, completes it through a Weorc service call —
+   `completeDeadline(anchorBillId, kind)`, a narrow addition beside
+   `upsertDeadline`. Feoh still never touches a `weorc_*` table (ADR 0018 §7),
+   and Weorc's page for a `trial_end` deadline renders a **link** onward to that
+   form rather than a Feoh form of its own.
+
+Correcting the amount edits the bill (or the price change that carries the
+post-trial price), which re-renders and re-upserts the deadline text by the rules
+above — and since the deadline is being completed in the same breath, that
+usually just retracts it.
 
 - Idempotent on `(anchorBillId, kind)`: editing a date moves the routine's
-  `anchorDate`, it does not add a second one.
-- `termEndsOn` projects **nothing** — it is a fact about the contract, and the
-  actionable date derived from it is `cancelByOn`. One date, one deadline.
+  `anchorDate`, it does not add a second one. **The derived cancel-by moves when
+  either `termEndsOn` or the notice period changes** — deriving the date means
+  Feoh must re-upsert on both edits, which is a save-path detail worth a test
+  rather than a comment.
+- `termEndsOn` projects **nothing** of its own — it is a fact about the
+  contract, and the actionable date derived from it is the cancel-by. One
+  actionable date, one deadline.
 - Clearing a date, or setting `cancelledOn`, deactivates the routine and closes
   its open occurrence as skipped (ADR 0018 §8).
+- **Ignoring one does not silence it** (ADR 0018 §9): while the occurrence is
+  open and overdue, the tick moves its task's due date to today every
+  `nudgeEveryDays`. The nudge is tighter for a trial (2 days) than for a
+  cancel-by (3), because a trial that converts costs money on a date nobody can
+  move, while a missed cancel-by has usually already cost the year. It stops
+  when the occurrence is completed or **skipped** — skipping is the household's
+  "stop asking", and the Feoh page must offer it in those words, not as "done".
 - The routine's anchor is the bill (`anchorBillId`), so Weorc's own views can
   say where the deadline came from.
 
@@ -287,6 +419,8 @@ GET    /api/v1/feoh/forecast?from=&to=&groupBy=month|envelope|payee
 GET    /api/v1/feoh/subscriptions                 # bill + subscription detail, with
                                                   #   monthlyEquivalent and derived status
 POST   /api/v1/feoh/bills/:id/subscription        # attach/replace the detail row
+POST   /api/v1/feoh/bills/:id/confirm-price       # stamp priceConfirmedAt and close
+                                                  #   the trial_end deadline (§7)
 DELETE /api/v1/feoh/bills/:id/subscription
 GET    /api/v1/feoh/bills/:id/price-changes
 POST   /api/v1/feoh/bills/:id/price-changes
@@ -299,16 +433,21 @@ recording a vehicle means recording an asset. `POST /feoh/bills` is unchanged.
 
 ## 9. Surfaces
 
-- **Feoh web page, new "Forecast" tab:** committed total for the next 12 months
-  as a monthly bar, the per-month breakdown by envelope, and a bill list sorted
+- **Feoh web page, new "Forecast" tab:** committed total for the next **24
+  months** as a monthly bar, with a 12/24 toggle (24 default, §4.6), the per-month breakdown by envelope, and a bill list sorted
   by monthly equivalent — which is the screen that answers "what am I paying for
   that I forgot about". Above it, an **envelope multiselect** (§5) with an
   *Unbudgeted* entry for `none`, all selected by default, showing "€180 of €412"
   whenever the selection is partial so the filtered number is never mistaken for
-  the whole.
+  the whole. A **confirm banner** appears while any subscription needs its
+  post-trial price confirmed (§7), listing them, each linking to its pre-filled
+  edit form.
 - **Hearth View tile:** "€412 committed in the next 30 days", and any deadline
-  inside its lead window ("Netflix trial ends in 3 days"). The Hearth View reads
-  the forecast; it does not compute one.
+  inside its lead window ("Netflix trial ends in 3 days"). An **overdue**
+  deadline escalates its treatment the longer it is ignored — `nudgeCount` is
+  on the occurrence for exactly this, so the wall display can get louder without
+  computing anything. The Hearth View reads the forecast; it does not compute
+  one.
 - **MCP (`heorth-mcp`, ADR 0008):** `feoh.forecast`,
   `feoh.list_subscriptions`, `feoh.record_subscription`,
   `feoh.record_price_change`. No new MCP surface in Heorth.
@@ -327,6 +466,11 @@ recording a vehicle means recording an asset. `POST /feoh/bills` is unchanged.
 - **Price-change history as an audit trail** — today's model holds *announced
   future* changes; it does not record what a bill used to cost before someone
   edited it.
+- **An explicit cancel-by override** (§3), for a contract whose notice rule is
+  not "term end minus a period". Additive: a nullable date column that wins over
+  the derivation when set. Not built, because it is precisely the hand-entered
+  date deriving was chosen over, and one real contract that needs it is a better
+  reason than a hypothetical.
 - **Server-side saved forecast views** (§5.8) — a named envelope selection
   shared across members and devices. Needs a settings table; the URL carries the
   selection until something concretely needs more.
@@ -353,6 +497,35 @@ recording a vehicle means recording an asset. `POST /feoh/bills` is unchanged.
   counts in its own month.
 - `cadenceUnknown` bills appear in `unforecastable` and not in any total, and
   the count follows the filter.
+- **The derived cancel-by**: 31 December with 3 months' notice derives
+  30 September (the clamp, §3); 6 weeks' notice derives by weeks; a notice
+  period without `termEndsOn` is rejected at the database; changing *either*
+  `termEndsOn` or the notice period moves the deadline routine.
+- **The default horizon is 24 months** with no `to`, and `to` beyond 24 is
+  capped rather than rejected.
+- **The trial itself**: a bill at `0.00` with a price change effective the day
+  after `trialEndsOn` forecasts the trial months as zero and the following ones
+  at the real amount — no special case, and the total is not inflated by a free
+  trial.
+- **Confirmation**: a subscription whose trial has passed with no
+  `priceConfirmedAt` marks its forecast lines `unconfirmed` while still counting
+  the amount; confirming stamps the date, clears the flag and completes the open
+  deadline occurrence; completing the task in the provider instead leaves the
+  flag standing (the banner survives an hourly-tick reconcile); `unconfirmed`
+  and `estimated` are independent and can both be true.
+- **Task text**: the rendered title carries the resolved amount for the first
+  occurrence after the deadline, including an announced price change; a
+  foreign-billed subscription is marked as an estimate with its rate date; a
+  non-monthly cadence shows the normalised monthly beside the billed amount; a
+  bill with a zero amount renders no figure at all.
+- **Text refresh**: editing the bill's amount re-upserts the routine, and the
+  next tick amends the already-projected task (ADR 0018 §11) rather than leaving
+  the old number in the inbox.
+- **Nudges**: an overdue deadline reschedules its task after `nudgeEveryDays`
+  and not before; `lastNudgedAt`/`nudgeCount` advance once per round, not once
+  per hourly tick; **skip stops the nudges** and completion stops them; a
+  provider without `amendTask` degrades to `provider_unavailable` and the
+  tick still succeeds (ADR 0018 §10).
 - The filter: an absent parameter returns every bill; `envelopes=` is a 400;
   `none` returns exactly the bills with no envelope; `committed` reflects the
   selection while `householdCommitted` does not move; a booked occurrence whose
@@ -375,16 +548,42 @@ recording a vehicle means recording an asset. `POST /feoh/bills` is unchanged.
    View number is therefore the household's whole commitment, which is the point
    of it, and every filtered response carries the unfiltered total beside the
    filtered one so a partial view cannot masquerade as the total.
-2. **Default forecast horizon: 12 or 24 months?** 12 is proposed. A yearly bill
-   makes 24 more informative and the bar chart harder to read.
-3. **Should `cancelByOn` be derived from `termEndsOn` plus a notice period**
-   rather than entered? Deriving it is friendlier and encodes a rule the contract
-   states; entering it is honest about the fact that notice rules are weirder
-   than "three months". Proposed: enter it, and revisit once a few real contracts
-   are in.
-4. **What happens to a deadline when the household ignores it?** The occurrence
-   goes overdue and stays open — Weorc's normal behaviour — but for a trial that
-   already converted, the useful thing is to close it and update the bill amount.
-   That is a Feoh action on a Weorc row, which ADR 0018 §6 forbids in that
-   direction. Likely answer: Feoh clears its own date, and the retraction path in
-   ADR 0018 §8 does the rest. Confirm when the page is designed.
+2. ~~Default forecast horizon: 12 or 24 months?~~ **Resolved 2026-09-09: 24,
+   and it is also the cap.** A yearly bill shows up twice, which is what makes
+   an annual commitment legible beside a monthly one. The chart pays for it with
+   a 12/24 toggle (§4.6, §9).
+3. ~~Should `cancelByOn` be derived from `termEndsOn` plus a notice period?~~
+   **Resolved 2026-09-09: derived.** The subscription stores a notice period
+   (`noticeCount`, `noticeUnit`) and the cancel-by date is computed, so it cannot
+   fall out of step with an extended term. The known gap — notice rules that are
+   not "term end minus a period" — is handled by choosing a period that lands on
+   or before the real date and writing the wording into `notes`; an override
+   column is deferred (§10).
+4. ~~What happens to a deadline when the household ignores it?~~ **Resolved
+   2026-09-09: the nudges come back.** While the occurrence is open and overdue,
+   the tick reschedules its task every `nudgeEveryDays` (2 for a trial end, 3
+   for a cancel-by) and the Hearth View escalates on `nudgeCount`. It ends on
+   completion or on **skip**, which is the household's "stop asking" and must be
+   worded that way — ADR 0018 §9. The cost is real and recorded there: the task
+   provider interface gains `amendTask`, its first new method since it shipped,
+   because the shipped interface can create a task and complete one but not
+   change one.
+5. ~~Should the trial-end task's wording carry the future price?~~ **Resolved
+   2026-09-09: yes, and the cancel-by task carries the renewal cost too** (§7).
+   The number comes from the forecast's own resolver, so the task and the chart
+   cannot disagree; an FX-converted figure is marked as an estimate with its rate
+   date; a missing amount renders no figure rather than a guess. It also widened
+   ADR 0018's provider method from a bare reschedule to
+   `amendTask({dueAt?, title?, notes?})`, because a task written once at
+   projection would otherwise keep a price the household has since corrected.
+6. ~~What still updates the bill's amount when a trial converts?~~ **Resolved
+   2026-09-09: completing the trial-end deadline hands the member the bill's edit
+   form, pre-filled** (§7). Still no automatic write — the household confirms or
+   corrects. `priceConfirmedAt` makes "nobody has checked this" a state rather
+   than a hope, so the forecast can count the recorded amount *and* say it is
+   unconfirmed; and because completion normally happens in the task provider
+   where there is no form to open, the prompt is a persistent banner plus a deep
+   link in the task's own notes rather than a modal. Specifying it also caught a
+   hole: a trial is the bill at its trial price **plus** a price change effective
+   the day after it ends, which the resolver already handles — without that, the
+   forecast would have billed the household for months it is not paying for.
