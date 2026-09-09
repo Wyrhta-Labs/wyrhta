@@ -843,7 +843,7 @@ exposed on the host. Same topology and service names as the dev file."
 # Household stack
 
 Two independent Compose files over one shared Postgres 18 cluster.
-Design rationale: [`../docs/plans/household-stack-compose.md`](../docs/plans/household-stack-compose.md).
+Design rationale: [`docs/plans/household-stack-compose.md`](../../plans/household-stack-compose.md).
 
 | File | Use | Services from |
 |---|---|---|
