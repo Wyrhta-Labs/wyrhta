@@ -210,7 +210,10 @@ holds is Weorc's; work a member merely thought of is a Task in the provider.
 An ignored Deadline **keeps nudging**: while its Occurrence is open and overdue
 the tick reschedules its Task every few days, and **skipping** is how a member
 says "stop asking" — completing means it was dealt with, so a household never
-has to mark undone work as done to get quiet.
+has to mark undone work as done to get quiet. A Deadline's Task also **carries
+the money at stake** where the fact behind it is financial ("trial ends 4 Oct,
+then €13.99/month"), rendered by the domain that owns the number and amended in
+place when that number changes.
 _Avoid_: reminder, alert, one-time task
 
 **Hearth View**:

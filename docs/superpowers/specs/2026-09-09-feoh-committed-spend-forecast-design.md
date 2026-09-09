@@ -293,10 +293,50 @@ only:
 Per ADR 0018, Feoh does not project anything itself. On create and on every edit
 of a subscription, Feoh calls `upsertDeadline` once per date it wants surfaced:
 
-| Date | Deadline kind | Name | `leadDays` | `nudgeEveryDays` |
-|---|---|---|---|---|
-| `trialEndsOn` | `trial_end` | "Decide on <payee> — trial ends" | 7 | 2 |
-| derived cancel-by (§3) | `cancel_by` | "Cancel <payee> or it renews" | 21 | 3 |
+| Date | Deadline kind | `leadDays` | `nudgeEveryDays` |
+|---|---|---|---|
+| `trialEndsOn` | `trial_end` | 7 | 2 |
+| derived cancel-by (§3) | `cancel_by` | 21 | 3 |
+
+**The task carries the money** (resolved 2026-09-09). A reminder that says
+"decide on Netflix" makes the member open Heorth to find out what is at stake;
+one that names the amount can be acted on from the inbox. So Feoh renders both
+the title and the notes and passes them to `upsertDeadline` — Weorc stores them
+on the routine and projects them, and never reads a Feoh table to format money
+(the dependency direction of ADR 0018 §6 is why).
+
+```
+trial_end   title: "Netflix — trial ends 4 Oct, then €13.99/month"
+            notes: "€13.99/month · €167.88/year · envelope: Entertainment
+                    Cancel at https://netflix.com/account"
+
+cancel_by   title: "Cancel Mobile plan by 30 Sep or it renews"
+            notes: "€29.90/month · renews for 12 months from 1 Jan
+                    ≈ €358.80 committed if it renews"
+```
+
+Rules that keep those strings honest:
+
+- **The amount comes from the forecast's own resolver** (§4), for the first
+  occurrence due on or after the deadline's date — so an announced price change
+  is already in the number, and the task and the chart can never disagree. It is
+  not a second lookup of `recurring_bills.amount`.
+- **An estimate says so.** A foreign-billed subscription renders "≈ €12.80
+  (est., rate of 12 Mar)", because a task in someone's inbox carries no tooltip
+  and an unmarked converted number will be read as exact (§6).
+- **The normalised monthly is shown beside the billed amount** whenever the
+  cadence is not monthly — "€167.88/year ≈ €13.99/mo" — since that is the
+  comparison the household is actually making.
+- **Re-upsert triggers are wider than the dates.** Feoh re-renders and
+  re-upserts when `termEndsOn` or the notice period moves the date, **and** when
+  the bill's amount, its cadence, a price change, the envelope or the URL change
+  the text. Weorc's refresh half of the nudge pass (ADR 0018 §11) then amends the
+  already-created task, so a corrected price reaches the inbox rather than
+  sitting in Heorth being right.
+- **No price is ever guessed.** If a trial has no post-trial amount recorded —
+  the bill's amount is what it will cost, so this means the household left it at
+  zero — the title omits the money and the notes say "amount not recorded". A
+  fabricated figure in a task is worse than a missing one.
 
 - Idempotent on `(anchorBillId, kind)`: editing a date moves the routine's
   `anchorDate`, it does not add a second one. **The derived cancel-by moves when
@@ -409,10 +449,18 @@ recording a vehicle means recording an asset. `POST /feoh/bills` is unchanged.
   `termEndsOn` or the notice period moves the deadline routine.
 - **The default horizon is 24 months** with no `to`, and `to` beyond 24 is
   capped rather than rejected.
+- **Task text**: the rendered title carries the resolved amount for the first
+  occurrence after the deadline, including an announced price change; a
+  foreign-billed subscription is marked as an estimate with its rate date; a
+  non-monthly cadence shows the normalised monthly beside the billed amount; a
+  bill with a zero amount renders no figure at all.
+- **Text refresh**: editing the bill's amount re-upserts the routine, and the
+  next tick amends the already-projected task (ADR 0018 §11) rather than leaving
+  the old number in the inbox.
 - **Nudges**: an overdue deadline reschedules its task after `nudgeEveryDays`
   and not before; `lastNudgedAt`/`nudgeCount` advance once per round, not once
   per hourly tick; **skip stops the nudges** and completion stops them; a
-  provider without `rescheduleTask` degrades to `provider_unavailable` and the
+  provider without `amendTask` degrades to `provider_unavailable` and the
   tick still succeeds (ADR 0018 §10).
 - The filter: an absent parameter returns every bill; `envelopes=` is a 400;
   `none` returns exactly the bills with no envelope; `committed` reflects the
@@ -453,13 +501,21 @@ recording a vehicle means recording an asset. `POST /feoh/bills` is unchanged.
    for a cancel-by) and the Hearth View escalates on `nudgeCount`. It ends on
    completion or on **skip**, which is the household's "stop asking" and must be
    worded that way — ADR 0018 §9. The cost is real and recorded there: the task
-   provider interface gains `rescheduleTask`, its first new method since it
-   shipped, because the shipped interface can create a task and complete one but
-   not change one.
-5. **Does the trial-end deadline need to know what happens after it?** A trial
-   that converts changes the bill's amount, and the household will want the
-   forecast to be right the day after. Nothing here updates an amount
-   automatically, and nothing should guess one; the open part is whether the
-   trial-end task's wording should carry the future price ("becomes €13.99/mo on
-   4 Oct") so the member can act on it without opening Heorth. Cheap, and worth
-   deciding with the page in front of us.
+   provider interface gains `amendTask`, its first new method since it shipped,
+   because the shipped interface can create a task and complete one but not
+   change one.
+5. ~~Should the trial-end task's wording carry the future price?~~ **Resolved
+   2026-09-09: yes, and the cancel-by task carries the renewal cost too** (§7).
+   The number comes from the forecast's own resolver, so the task and the chart
+   cannot disagree; an FX-converted figure is marked as an estimate with its rate
+   date; a missing amount renders no figure rather than a guess. It also widened
+   ADR 0018's provider method from a bare reschedule to
+   `amendTask({dueAt?, title?, notes?})`, because a task written once at
+   projection would otherwise keep a price the household has since corrected.
+6. **What still updates the bill's amount when a trial converts?** Nothing does,
+   deliberately — no automatic write, and the task now tells the member the
+   figure to expect. But the forecast is wrong for the months between conversion
+   and the member editing the bill, and it is wrong *low*, which is the direction
+   that misleads. Options when the page is designed: leave it (the deadline task
+   is the prompt), or let completing the trial-end deadline open the bill's edit
+   form pre-filled. Not a schema question, which is why it can wait.

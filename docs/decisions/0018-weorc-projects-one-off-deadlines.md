@@ -120,17 +120,31 @@ not its owner.**
     reconcile pass reads a completed task as a completion — so the lie would
     also terminate the deadline); and nudging only inside Heorth's own screens
     (which abandons the reason this ADR exists — the household's inbox is where
-    work is seen). So `TaskProvider` gains a **`rescheduleTask(feedKey,
-    externalId, dueAt)`**, the first addition to that interface since it
+    work is seen). So `TaskProvider` gains its first new method since it
     shipped. Graph supports it (`PATCH` on a To Do task); a provider that cannot
     reschedule throws the classified `provider_unavailable` it already has, and
     the nudge degrades to Heorth's own surfaces rather than failing the tick.
-11. **The nudge is a fourth pass, and it is rate-limited by data, not by the
-    tick.** `runWeorcTick` runs hourly; the pass selects open, overdue,
-    already-projected occurrences whose routine sets `nudgeEveryDays` and whose
-    `lastNudgedAt` is older than that, moves the mirrored task's due date to
-    today, and stamps `lastNudgedAt`/`nudgeCount`. Nothing else about the
-    existing three passes changes.
+    **The method is `amendTask(feedKey, externalId, { dueAt?, title?, notes? })`,
+    not a bare reschedule.** Since the interface is growing anyway and the
+    provider call is one PATCH either way, it costs nothing to let the amend
+    carry text — and it buys the fix for §11's staleness problem, which a
+    due-date-only method would have left unsolved.
+11. **The nudge is a fourth pass, rate-limited by data rather than by the tick —
+    and the same pass keeps a projected task's text true.**
+    `runWeorcTick` runs hourly; the pass selects open, **already-projected**
+    occurrences and does up to two things to each:
+    - **Nudge**, when the occurrence is overdue, its routine sets
+      `nudgeEveryDays`, and `lastNudgedAt` is older than that: amend the task's
+      `dueAt` to today and stamp `lastNudgedAt` / `nudgeCount`.
+    - **Refresh**, when the routine's `updatedAt` is newer than the occurrence's
+      new `projectedTextAt`: amend the task's `title` and `notes` to the
+      routine's current text and stamp `projectedTextAt`.
+    The second half exists because a task is written once at projection and then
+    outlives the facts behind it. A trial-end task that says "then €13.99" after
+    the price was corrected to €14.99 is worse than one that says nothing —
+    the household acts on the number in its inbox. A nudge round sends the
+    current text anyway, so the two halves share one call whenever both apply.
+    Nothing else about the existing three passes changes.
 12. **No new engine, no new tick, no new provider.** Same `runWeorcTick`, same
     projection, same single task provider — one pass and one provider method
     added, both in the existing shapes. That is the whole point: this ADR
@@ -160,7 +174,7 @@ not its owner.**
   as it treats any other vanished Task. This ADR adds no new failure mode there,
   and no new state to explain.
 - **A provider interface grew, which is a cost ADR 0001 asked us to notice.**
-  `rescheduleTask` must exist in every future task provider — Google Tasks,
+  `amendTask` must exist in every future task provider — Google Tasks,
   CalDAV, the partner project — or that provider silently cannot nudge. It is
   one method, it is PATCH-shaped in every API of this kind, and the degradation
   path is the classified error the interface already carries; but the 2.0
@@ -171,6 +185,12 @@ not its owner.**
   first time Weorc touches a projected task after creating it — so the write
   path that was create-only is now create-and-amend, and a provider outage
   during a nudge round is a classified failure that simply retries next tick.
+- **A projected task is no longer written once and forgotten.** Editing a
+  routine's name now reaches an already-created task on the next tick, for every
+  routine and not only for deadlines — a behaviour change for chores too, and the
+  right one: a renamed chore whose task keeps the old title is a bug nobody had
+  got round to reporting. The cost is `projectedTextAt` on every occurrence and
+  one more reason the tick writes to the provider.
 - **`skip` acquires a second meaning, and it is the honest one.** On a chore it
   means "not this time"; on a deadline it means "stop asking me". Both are
   terminal, both keep the row as history, and the UI has to word the button
