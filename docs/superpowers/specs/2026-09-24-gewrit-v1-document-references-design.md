@@ -63,7 +63,7 @@ Paperless type, URL or error body leaves the provider.
 ```ts
 interface DocumentProvider {
   id: 'paperless' | 'fake';
-  /** Full-text search. At most `limit` hits, newest first. */
+  /** Full-text search. At most `limit` hits, in the provider's relevance order. */
   search(query: string, limit: number): Promise<DocumentMeta[]>;
   /** Metadata for the given ids. Ids the provider does not return are absent. */
   getMany(externalIds: string[]): Promise<DocumentMeta[]>;
@@ -91,7 +91,11 @@ interface DocumentStream {
 ```
 
 `providers/paperless.ts` implements it against the Paperless REST API with
-`Authorization: Token <PAPERLESS_TOKEN>`:
+`Authorization: Token <PAPERLESS_TOKEN>`. Every JSON call pins the API version with
+`Accept: application/json; version=<N>`, where `<N>` is a constant in the provider,
+set at implementation time to the current Paperless API version and covered by a
+test. An unpinned client gets whatever version the server defaults to, which can
+change the response shape under Heorth on a Paperless upgrade.
 
 | Provider call | Paperless endpoint |
 |---|---|
@@ -103,7 +107,9 @@ interface DocumentStream {
 Document type and correspondent come back from Paperless as ids. The provider
 resolves them to names through `GET /api/document_types/` and
 `GET /api/correspondents/`, cached in process for 10 minutes. A stale name for up to
-ten minutes is acceptable.
+ten minutes is acceptable. Paperless applies object permissions to types and
+correspondents as well as to documents: a name the `heorth` user cannot see, or a
+failed lookup, degrades that field to `null` and never fails the call.
 
 Every call has a timeout: 3 s for `getMany` during a list refresh, 8 s for `search`
 and for the first byte of `openPreview`. The preview body itself streams without a
@@ -185,16 +191,24 @@ cascades. A later element type is one column and a wider CHECK; a KithLedger per
 would be a plain id without a foreign key, since it lives in another service.
 
 **Deleting.** Deleting an asset or place cascades to its links. When a link is
-deleted — directly or by cascade — and it was the document's last link, the service
-deletes the `gewrit_documents` row in the same transaction for a direct delete. Rows
-orphaned by a cascade are removed by a sweep at the start of each list refresh
-(`DELETE ... WHERE NOT EXISTS (SELECT 1 FROM gewrit_links ...)`). Nothing is ever
+deleted directly and it was the document's last link, the service deletes the
+`gewrit_documents` row in the same transaction. A cascade from Ethel cannot do
+that — Ethel does not know Gewrit exists — so rows orphaned that way are removed by
+a sweep at the start of each list refresh:
+`DELETE FROM gewrit_documents d WHERE NOT EXISTS (SELECT 1 FROM gewrit_links l WHERE
+l.document_id = d.id) AND d.updated_at < now() - interval '1 hour'`. The age guard
+keeps the sweep off a row that a concurrent link request has just upserted but not
+yet linked (§3, *Linking*, touches `updated_at`). An orphan is harmless while it
+waits: nothing lists it, and the preview gate requires a link (§3). Nothing is ever
 deleted in Paperless.
 
 ## 3. API and data flow
 
-All routes require an authenticated member, as every Heorth route does. Ids in
-paths are validated before any provider call: Heorth uuids as uuids, provider ids as
+All routes require an authenticated member (`requireAuth`), as every Heorth route
+does. The write routes — `POST`, `PATCH` and `DELETE` on `/links` — additionally
+require `requireRole('admin', 'adult')`, the same `canWrite` guard Ethel and Weorc
+use. Search, lists and preview are readable by every member. Ids in paths are
+validated before any provider call: Heorth uuids as uuids, provider ids as
 `^[1-9][0-9]{0,9}$`.
 
 | Route | Behaviour |
@@ -230,9 +244,11 @@ A list response is:
 1. Validate the body; the element must exist (422 otherwise).
 2. `getMany([externalId])` live. Absent → `422 document_not_found`. Provider
    failure → `502 provider_unavailable` or `502 provider_auth`.
-3. Upsert `gewrit_documents` on (`source`, `external_id`) with the fresh snapshot,
-   `status='available'`, `last_seen_at=now()`.
-4. Insert the link. Duplicate → `409 already_linked`.
+3. In **one transaction**: upsert `gewrit_documents` on (`source`, `external_id`)
+   with the fresh snapshot, `status='available'`, `last_seen_at=now()`,
+   `updated_at=now()`; then insert the link. Duplicate → `409 already_linked`, and
+   the transaction rolls back. The provider call in step 2 stays outside the
+   transaction, so no lock is held across a network request.
 
 Paste is not a separate route: the UI extracts the id from a pasted Paperless URL
 (`/documents/<id>/…`) or takes a bare number, and posts it.
@@ -253,21 +269,30 @@ refresh degrades to the last known snapshot instead of an error.
 
 ### Preview
 
-1. Load the `gewrit_documents` row by uuid. No row → 404. **Only documents that have
-   a row can be previewed**; Heorth is not a proxy onto the whole Paperless
-   instance. This is also why the search picker shows text only.
+1. Load the `gewrit_documents` row by uuid **that has at least one
+   `gewrit_links` row**. Otherwise → 404. **Only linked documents can be
+   previewed**; Heorth is not a proxy onto the whole Paperless instance, and an
+   orphan waiting for the sweep is not previewable. This is also why the search
+   picker shows text only.
 2. `openPreview(externalId)`. Not found → mark the row `missing`, answer 404.
    Other failures → 502 as above.
-3. Stream the body through unchanged, with `Content-Type` and `Content-Length` from
-   upstream and `Content-Disposition: inline`, `Cache-Control: private, no-store`,
-   `X-Content-Type-Options: nosniff` set by Heorth. Upstream headers are otherwise
-   dropped. Nothing is buffered to disk or held whole in memory. If the client
-   disconnects, the upstream request is aborted.
+3. Decide the disposition from the upstream `Content-Type` against an allowlist:
+   `application/pdf`, `image/png`, `image/jpeg`, `image/gif`, `image/webp`. An
+   allowlisted type is served with that type and `Content-Disposition: inline`.
+   **Everything else** — HTML, XML, SVG, text, unknown or missing — is served as
+   `application/octet-stream` with `Content-Disposition: attachment`, so active
+   content from a stored document can never execute in Heorth's origin.
+4. Stream the body through, with `Content-Length` from upstream and
+   `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff` and
+   `Content-Security-Policy: sandbox; default-src 'none'` set by Heorth. Upstream
+   headers are otherwise dropped. Nothing is buffered to disk or held whole in
+   memory. If the client disconnects, the upstream request is aborted.
 
 The web UI authenticates with a Bearer header, which `<iframe src>` and `<img src>`
-cannot send. The panel fetches the preview as a blob and renders it from an object
-URL — PDFs in an `<iframe>` using the browser's built-in viewer, images in an
-`<img>`, anything else as a download link — and revokes the URL when the modal
+cannot send. The panel fetches the preview as a blob and branches on the
+**response's** content type: `application/pdf` in an `<iframe>` using the browser's
+built-in viewer, allowlisted images in an `<img>`, and anything else as an
+`<a download>` link, never rendered. It revokes the object URL when the modal
 closes.
 
 ## 4. Error behaviour
@@ -301,9 +326,12 @@ Upstream response bodies are never passed on.
 Two read-only tools, calling Heorth's REST API with the caller's `he_` key
 (ADR 0008), in a separate commit after the Heorth release:
 
-- `gewrit_list_documents({ assetId } | { placeId })` — the element's links with
+- `gewrit.list_documents({ assetId } | { placeId })` — the element's links with
   document metadata and `externalUrl`.
-- `gewrit_search({ q })` — the search route.
+- `gewrit.search({ q })` — the search route.
+
+The dotted names follow heorth-mcp's existing namespace convention
+(`ethel.list_assets`).
 
 No preview tool: an agent has no use for PDF bytes. No write tools in v1.
 
@@ -313,9 +341,12 @@ No preview tool: an agent has no use for PDF bytes. No write tools in v1.
   `GEWRIT_PROVIDER`, `PAPERLESS_BASE_URL`, `PAPERLESS_TOKEN` and
   `PAPERLESS_PUBLIC_URL` as one block, blank by default. `compose.dev.yml` and
   `compose.prod.yml` pass them to Heorth, and `scripts/check-env-template.mjs` must
-  pass against the template, both compose files and Heorth's env schema. Operator setup, documented in the Heorth README: create a
-  `heorth` user in Paperless, share the relevant documents with it (view permission
-  is enough), create its API token.
+  pass. That script only compares the compose files with the template; it cannot
+  see a variable missing from both, so the schema side is covered by Heorth's env
+  tests (§9) listing all four variables. Operator setup, documented in the Heorth
+  README: create a `heorth` user in Paperless; give it **view** permission on the
+  documents to be linked **and** on the document types and correspondents they use
+  (without the latter the names show as blank, §1); create its API token.
 - **Demo (ADR 0012):** `compose.demo.yml` sets `GEWRIT_PROVIDER: fake` and no
   `PAPERLESS_*` values. `deploy/seed-demo.mjs` links the fake documents through
   `POST /api/v1/gewrit/links` to the seeded boiler, car and ground floor. The demo
@@ -335,19 +366,25 @@ No preview tool: an agent has no use for PDF bytes. No write tools in v1.
 ## 9. Testing
 
 - **Provider unit tests** (`paperless.ts`) against a stubbed `fetch`: response
-  mapping including type and correspondent names, `id__in` batching, 404 → absent,
-  401/403 → `auth`, timeout → `timeout`, and that the token appears in no thrown
-  error or log line.
+  mapping including type and correspondent names, a hidden or failing taxonomy
+  lookup → `null` names, the pinned `Accept` version header on every JSON call,
+  `id__in` batching, 404 → absent, 401/403 → `auth`, timeout → `timeout`, and that
+  the token appears in no thrown error or log line.
 - **Service and route tests** on the `_test` database with an in-memory fake
   `DocumentProvider`: link happy path, `document_not_found`, `already_linked`, the
   exactly-one CHECK, role change collision, refresh updates the snapshot, absent id
   becomes `missing` and reappears as `available`, provider outage gives
-  `stale: true` with rows unchanged, orphan sweep, last-link delete removes the
-  document row, asset and place deletion cascade, `not_configured` when off, and the
-  preview gate (unknown uuid → 404 without a provider call).
-- **Streaming test:** content type and length passed through, the three headers
-  set, other upstream headers dropped, a client abort aborts upstream.
-- **Env tests:** `paperless` with missing values fails startup and names them.
+  `stale: true` with rows unchanged, orphan sweep including its one-hour age guard,
+  last-link delete removes the document row, asset and place deletion cascade,
+  `not_configured` when off, write routes refused for a non-adult member (403) and
+  reads allowed, and the preview gate (unknown uuid and orphaned row → 404 without
+  a provider call).
+- **Streaming test:** allowlisted PDF and image types served inline with their
+  type; HTML, SVG, text and a missing type served as `application/octet-stream`
+  attachment; length passed through, the security headers set, other upstream
+  headers dropped, a client abort aborts upstream.
+- **Env tests:** `paperless` with missing values fails startup and names them; all
+  four variables are in the schema (the half `check-env-template.mjs` cannot see).
 - **Web tests:** panel hidden when the feature is off, grouping by role, missing
   state, paste parsing (URL and bare id), stale hint.
 - **heorth-mcp:** the two tools against a stubbed Heorth API.
