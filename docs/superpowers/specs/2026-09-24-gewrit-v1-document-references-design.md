@@ -2,7 +2,11 @@
 
 **Date:** 2026-09-24 · **Decision:** ADR 0017 (to be written as the first task of the plan)
 
-**Status:** draft, awaiting review.
+**Status:** shipped 2026-09-24 (Heorth v0.9.0). Implementation plan:
+[2026-09-24-gewrit-v1](../plans/2026-09-24-gewrit-v1.md). Settled at planning
+time: provider errors are a `DocumentProviderError` class recognised by duck
+typing; the demo provider generates its PDFs in code; the Paperless API version
+is pinned to 10; places get their panel from the place manager.
 
 **Target repos — this is at least three commits**, per `AGENTS.md` ("one change, one
 repo, one commit"): the module, schema, migration, web panel and tests land in

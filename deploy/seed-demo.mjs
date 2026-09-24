@@ -487,6 +487,34 @@ async function seedHeorth() {
     count('facility details', verdict);
   }
 
+  // --- gewrit: document links (ADR 0017) ------------------------------------
+  // The demo stack runs GEWRIT_PROVIDER=fake: four built-in documents, ids 1-4.
+  // Skipped when a stack has Gewrit off, so the seed still runs against one
+  // without it. Idempotent on (element, externalId, role).
+  const features = await heorth('GET', '/api/v1/features', { token });
+  if (features?.gewrit) {
+    const documentLinks = [
+      { externalId: '1', role: 'manual', assetId: assetId['Vaillant ecoTEC boiler'] },
+      { externalId: '2', role: 'warranty', assetId: assetId['Vaillant ecoTEC boiler'] },
+      { externalId: '3', role: 'certificate', assetId: assetId['Ford Focus estate'] },
+      { externalId: '4', role: 'other', placeId: placeId['Ground floor'] },
+    ];
+    for (const l of documentLinks) {
+      const listPath = l.assetId
+        ? `/api/v1/gewrit/assets/${l.assetId}/documents`
+        : `/api/v1/gewrit/places/${l.placeId}/documents`;
+      const [, verdict] = await ensure(
+        `gewrit link ${l.externalId}`,
+        async () =>
+          ((await heorth('GET', listPath, { token })) ?? []).find(
+            (x) => x.document.externalId === l.externalId && x.role === l.role
+          ) ?? null,
+        async () => heorth('POST', '/api/v1/gewrit/links', { ...as, body: l })
+      );
+      count('gewrit', verdict);
+    }
+  }
+
   // --- weorc: routines -------------------------------------------------------
   // ADR 0015 §4 makes the seeded demo household this slice's acceptance check,
   // so the seed must show the ANCHORED and UNANCHORED cases side by side: that

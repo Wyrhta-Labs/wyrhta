@@ -143,6 +143,14 @@ services:
       # The household's one currency (ISO 4217). Imported lines in any other
       # currency wait in the inbox and are never booked.
       FEOH_CURRENCY: ${FEOH_CURRENCY:-EUR}
+      # Gewrit (ADR 0017). Paperless-ngx is EXTERNAL — no container in this
+      # stack. Blank GEWRIT_PROVIDER = off; `paperless` needs URL and token.
+      GEWRIT_PROVIDER: ${GEWRIT_PROVIDER:-}
+      PAPERLESS_BASE_URL: ${PAPERLESS_BASE_URL:-}
+      PAPERLESS_TOKEN: ${PAPERLESS_TOKEN:-}
+      PAPERLESS_PUBLIC_URL: ${PAPERLESS_PUBLIC_URL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

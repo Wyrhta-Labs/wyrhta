@@ -133,6 +133,10 @@ services:
       # inbox directly, so the inbox and the rules UI still have content.
       FEOH_IMPORT_ENABLED: "false"
       FEOH_CURRENCY: ${FEOH_CURRENCY:-EUR}
+      # Gewrit runs on the built-in demo provider: four fixed documents and
+      # generated PDFs, no network (ADR 0012). Pinned literally, like
+      # FEOH_IMPORT_ENABLED above; seed-demo.mjs links the documents.
+      GEWRIT_PROVIDER: fake
     depends_on:
       db:
         condition: service_healthy
