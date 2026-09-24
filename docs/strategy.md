@@ -116,7 +116,9 @@ The old rule "feature work does not resume until deployed" is **retired**; what
 survives it is the sentence above it, that real use reprioritises everything
 after this phase. The human items are **not** deferred and should run in
 parallel. One slice ahead of deployment, not two: a second would need its own
-ADR. ADR 0017 is that ADR: Gewrit v1 is the second slice, and the last before deployment.
+ADR. ADR 0016 then took a second slice and said a third should be refused; ADR 0017
+took Gewrit v1 as the third anyway, against that advice, and it is the last
+before deployment — a fourth would need its own ADR.
 
 ### Phase 4 — Ethel v1
 
@@ -160,7 +162,9 @@ beside two anchored ones (the boiler, the kitchen), which is the acceptance
 check ADR 0015 §4 calls for. What is **not** true yet: this is shipped-in-repo,
 not deployed — no real household runs it, and the demo stack has no task
 provider, so its occurrences stay unprojected (by design, not as a defect).
-Gewrit v1 (ADR 0017) is the second pre-deployment slice, authorised by that ADR under ADR 0015 §5; Phase 3 deployment follows it. A third would need its own ADR.
+Gewrit v1 (ADR 0017) is the third pre-deployment slice, authorised by that ADR
+under ADR 0015 §5 and taken against ADR 0016's advice to refuse a third; Phase 3
+deployment follows it. A fourth would need its own ADR.
 
 - **Gewrit v1** (ADR 0017): Paperless-ngx documents linked to Ethel assets and
   places, with an inline preview streamed from Paperless.
@@ -177,7 +181,8 @@ Unordered until Phase 3 learnings land:
 - Feoh module growth (in Heorth, ADR 0007): checking accounts for daily
   life, investments, retirement projection strategies. Bank ingestion shipped
   2026-09 behind ADR 0016 (Firefly III as an optional sidecar; Feoh remains
-  the ledger). ADR 0016 named this the last pre-deployment slice; ADR 0017 added Gewrit v1 after it, and Phase 3 deployment follows that.
+  the ledger). ADR 0016 named this the last pre-deployment slice; ADR 0017 added Gewrit v1
+  after it as a third, against that advice, and Phase 3 deployment follows that.
   - **Committed-spend forecast** (subscriptions), the household's own ask,
     modelled on the iOS app *Subtrack*: a normalised monthly cost per recurring
     bill, a forward timeline of what falls due with a per-envelope breakdown

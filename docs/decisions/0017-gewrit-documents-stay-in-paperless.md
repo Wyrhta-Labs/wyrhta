@@ -1,6 +1,6 @@
 # 0017 — Gewrit: household documents stay in Paperless-ngx
 
-**Status:** accepted (2026-09-24) · authorises a second pre-deployment slice (ADR 0015 §5)
+**Status:** accepted (2026-09-24) · authorises a third pre-deployment slice, against ADR 0016's advice (ADR 0015 §5)
 
 ## Context
 
@@ -39,10 +39,14 @@ second, weaker copy.
    a document hub.
 7. **Optional per deployment.** `GEWRIT_PROVIDER` is `paperless`, `fake` (the
    demo stack, ADR 0012) or blank (off, module not mounted).
-8. **Sequencing (ADR 0015 §5).** Gewrit v1 is a second pre-deployment feature
-   slice after bank ingestion (ADR 0016), and this ADR is the one ADR 0015 §5
-   requires before such a slice starts. Phase 3 deployment follows Gewrit v1;
-   a third pre-deployment slice would need its own ADR again.
+8. **Sequencing (ADR 0015 §5).** Gewrit v1 is the **third** pre-deployment
+   feature slice: ADR 0015 put Ethel v1 and Weorc's first slice ahead of
+   deployment, bank ingestion (ADR 0016) took the second slice, and ADR 0016
+   said a third should be refused. This slice is taken against that advice, and this ADR is the one
+   ADR 0015 §5 requires before such a slice starts.
+   <!-- Christian: why the third slice went ahead -->
+   Phase 3 deployment follows Gewrit v1; a fourth pre-deployment slice would
+   need its own ADR.
 
 ## Consequences
 

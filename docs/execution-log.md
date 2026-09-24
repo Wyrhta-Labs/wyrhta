@@ -313,8 +313,8 @@ deployment. Phase 3 (deployment) follows after real use validates.
   `staleReason`) and `gewrit.search`; registry 52 Heorth + 13 kith = 65; docs
   corrected to 56 ported embedded tools plus `weorc.*` (7) and `gewrit.*` (2) new.
   187 tests.
-- Meta (d98d091..bebe3bd): ADR 0017, glossary (Office → Gewrit), strategy (second
-  and last pre-deployment slice); env template, dev/prod compose pass the four
+- Meta (d98d091..bebe3bd): ADR 0017, glossary (Office → Gewrit), strategy (third
+  pre-deployment slice, against ADR 0016's advice, and the last); env template, dev/prod compose pass the four
   variables, demo pins `GEWRIT_PROVIDER: fake`; `seed-demo.mjs` links demo
   documents 1–4 (seed: 4 created, reseed: 0 created / 4 there); spec status
   "implemented; ships with the Heorth v0.9.0 tag".
@@ -333,5 +333,5 @@ deployment. Phase 3 (deployment) follows after real use validates.
   Firefox (steps in the slice's task-10 report) — gates the v0.9.0 tag;
   (2) Paperless API-10 check (`X-Api-Version: 10`) before enabling
   `GEWRIT_PROVIDER=paperless` — `deploy/.env` has no Paperless values yet.
-- Phase 3 (deployment) follows Gewrit v1. A third pre-deployment slice needs its
+- Phase 3 (deployment) follows Gewrit v1. A fourth pre-deployment slice needs its
   own ADR.
