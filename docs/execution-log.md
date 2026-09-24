@@ -288,3 +288,50 @@ deployment. Phase 3 (deployment) follows after real use validates.
   pages — the one behaviour no test can assert.
 - Phase 3 (deployment) is next. ADR 0016 named this the last pre-deployment
   slice; a further one needs its own ADR.
+
+## Gewrit v1 — document references backed by Paperless-ngx (ADR 0017), 2026-09-24
+
+- Spec `docs/superpowers/specs/2026-09-24-gewrit-v1-document-references-design.md`,
+  plan `docs/superpowers/plans/2026-09-24-gewrit-v1.md` (13 tasks). Codex reviewed
+  spec and plan before execution. Executed subagent-driven across Heorth,
+  heorth-mcp and the meta repo, on feature branches (`feat/gewrit-v1` in Heorth
+  and meta, `feat/gewrit-tools` in heorth-mcp). NOT yet merged, tagged or pushed —
+  Christian decides.
+- Heorth (841d21e..0063903): `src/modules/gewrit/` — env group `GEWRIT_PROVIDER`
+  (`paperless` | `fake` | blank) + `PAPERLESS_*`; tables `gewrit_documents` and
+  `gewrit_links` (migration 0029, NULLS NOT DISTINCT unique, cascades from Ethel);
+  `DocumentProvider` contract with the demo provider (four documents, PDFs built
+  in code) and the Paperless provider (API version pinned to 10, first-byte
+  timeout, abort reaches upstream, token never in an error); service with snapshot
+  refresh, orphan sweep and a documented lock order; routes under
+  `/api/v1/gewrit` (search and writes admin/adult; preview only for linked
+  documents, inline allowlist, no-store, nosniff); Documents panel, link dialog and
+  preview (en/de) on assets and, via the place manager, places. Release commit
+  `chore(release): v0.9.0` (f7a47fa). Backend 99 files / 814 tests, web 69 files /
+  371 tests, both builds clean; the four invariant greps empty.
+- heorth-mcp (78faef7..7ecc3ce): `gewrit.list_documents` (with `stale` and
+  `staleReason`) and `gewrit.search`; registry 52 Heorth + 13 kith = 65; docs
+  corrected to 56 ported embedded tools plus `weorc.*` (7) and `gewrit.*` (2) new.
+  187 tests.
+- Meta (d98d091..bebe3bd): ADR 0017, glossary (Office → Gewrit), strategy (second
+  and last pre-deployment slice); env template, dev/prod compose pass the four
+  variables, demo pins `GEWRIT_PROVIDER: fake`; `seed-demo.mjs` links demo
+  documents 1–4 (seed: 4 created, reseed: 0 created / 4 there); spec status
+  "implemented; ships with the Heorth v0.9.0 tag".
+- Task reviews: 2 fix rounds. Task 6: the plan's delete/relink race test was
+  timing-dependent, so two deterministic lock-wait tests were added beside it.
+  Task 12: the plan's AGENTS.md count sentence was wrong (weorc.* was never
+  embedded). Final whole-branch review (opus): 0 critical, 1 important (provider
+  failures unlogged; auth read as an outage on list refresh), fixed in one wave with
+  seven minors (`meta.staleReason`, logged provider failures, sweep control row,
+  AGENTS.md env sentence, preview/list error texts, LINK_NOT_FOUND, doc counts) and
+  re-reviewed clean.
+- PARKED: a cold taxonomy lookup can stretch a list refresh to ~6 s and blank
+  known type/correspondent names for 15 min on a lookup timeout; a downloaded
+  non-inline file has no extension.
+- OPEN for Christian: (1) the PDF preview renders inside the dialog in Chrome AND
+  Firefox (steps in the slice's task-10 report) — gates the v0.9.0 tag;
+  (2) Paperless API-10 check (`X-Api-Version: 10`) before enabling
+  `GEWRIT_PROVIDER=paperless` — `deploy/.env` has no Paperless values yet.
+- Phase 3 (deployment) follows Gewrit v1. A third pre-deployment slice needs its
+  own ADR.
