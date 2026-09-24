@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-24 · **Decision:** ADR 0017 (to be written as the first task of the plan)
 
-**Status:** shipped 2026-09-24 (Heorth v0.9.0). Implementation plan:
+**Status:** implemented 2026-09-24; ships with the Heorth v0.9.0 tag. Implementation plan:
 [2026-09-24-gewrit-v1](../plans/2026-09-24-gewrit-v1.md). Settled at planning
 time: provider errors are a `DocumentProviderError` class recognised by duck
 typing; the demo provider generates its PDFs in code; the Paperless API version
