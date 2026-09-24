@@ -21,6 +21,8 @@ Cross-cutting decisions that affect more than one Wyrhta Labs service.
 - [0015 — Feature work resumes before deployment](0015-feature-work-resumes-before-deployment.md)
 - [0016 — Bank ingestion behind an ingestion provider; Firefly III is a sidecar, not the ledger](0016-bank-ingestion-behind-an-ingestion-provider.md)
 - [0017 — Gewrit: household documents stay in Paperless-ngx](0017-gewrit-documents-stay-in-paperless.md)
+- [0018 — Weorc projects one-off deadlines; Feoh's subscription dates are the first consumer](0018-weorc-projects-one-off-deadlines.md)
+- [0019 — Gewrit grows a register: unlinked Filings, a household tag, more anchors](0019-gewrit-register-and-unlinked-filings.md)
 
 ## Format
 

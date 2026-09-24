@@ -56,6 +56,108 @@ Ideas fully captured elsewhere. Format: **title** → destination + date.
 
 <!-- - **<title>** → [`plans/<file>.md`](plans/<file>.md) · YYYY-MM-DD -->
 
+- **A committed-spend forecast for Feoh, like the iOS app Subtrack** →
+  [`specs/2026-09-09-feoh-committed-spend-forecast-design.md`](superpowers/specs/2026-09-09-feoh-committed-spend-forecast-design.md)
+  + [ADR 0018](decisions/0018-weorc-projects-one-off-deadlines.md) (proposed) ·
+  2026-09-09 — subscriptions as a **recurring bill plus a detail row**
+  (`feoh_subscriptions`, the Ethel vehicle pattern), a normalised monthly cost,
+  a forward timeline with a per-envelope breakdown over **every** recurring bill
+  (resolved 2026-09-09: rent and insurance are commitments too, narrowed by a
+  multiselect over **envelopes** — the category Feoh already has, so no
+  `category` column, and a filtered total always travels beside the unfiltered
+  household one), and announced future
+  **price changes** so a forecast spanning one is right rather than merely
+  arithmetic. The forecast is a **fold over the existing `listOccurrences`
+  engine** — override beats price change beats bill amount, booked beats all
+  three — so Feoh does not grow a second projector. Foreign-billed
+  subscriptions carry a declared amount and a hand-maintained rate and are
+  shown as an **estimate**; the ledger stays single-currency, so ADR 0016 §7
+  stands and a future `FxProvider` (ADR 0003's category) would just fill in the
+  rate. Scoped **against** a balance projection: no expected income is
+  modelled, so it says what leaves, never what remains.
+  The cross-cutting half is ADR 0018: **Weorc gains `mode = 'once'`** so a
+  trial-end or cancel-by date reaches the task inbox through the household's one
+  projection engine (ADR 0014) instead of Feoh growing its own. The boundary
+  rule it adds — Weorc owns work whose **existence is derived from a household
+  fact**, recurring or not; "buy milk" stays a Task — is what keeps that door
+  from swinging, and the mode is not Feoh-specific: Wyrtgeard's "sow by" is the
+  next consumer. **Settled 2026-09-09 as the spec was reviewed:** the default
+  horizon is **24 months** (a yearly bill appears twice, which is what makes an
+  annual commitment legible), the cancel-by date is **derived** from the term end
+  minus a stored notice period rather than entered (so it cannot drift when a
+  contract is extended — and the day-of-month clamp already makes "31 December
+  minus 3 months" land on 30 September), and **an ignored deadline keeps
+  nudging** until it is completed or skipped, with skip as the household's "stop
+  asking". That last one costs `TaskProvider` its first new method since it
+  shipped — the shipped interface can create a task and complete one, but not
+  change one, and the alternatives were duplicate tasks or writing "done" into
+  the household's history for work nobody did. The method is `amendTask` rather
+  than a bare reschedule, because the deadline's Task also **carries the money**
+  ("trial ends 4 Oct, then €13.99/month", marked as an estimate when the rate is
+  a hand-maintained one) and a task written once at projection would otherwise
+  keep a price the household has since corrected. **Completing a trial-end
+  deadline hands the member the bill's edit form pre-filled** — confirm or
+  correct, never a blank — with `priceConfirmedAt` making "nobody has checked
+  this" a state the forecast can show, and a deep link in the task's notes
+  because completion normally happens in the task provider where there is no
+  form to open. Specifying that caught a hole: a trial is the bill at its
+  trial price *plus* a price change effective the day after it ends, or the
+  forecast bills the household for months it is not paying for. Also in
+  [`strategy.md`](strategy.md) (Phase 5+, Feoh and Weorc growth) and
+  [`../CONTEXT.md`](../CONTEXT.md) (Subscription, Committed Spend, Deadline,
+  Routine). **Not startable:** Phase 5+, after Phase 3 deployment.
+  Caveat recorded in the spec — the App Store page was unreachable from the
+  authoring session, so Subtrack's feature set is from description and
+  familiarity, not a read.
+
+- **Connect paperless-ngx via API, so reference documents hang off transactions,
+  appliances and so on** →
+  [ADR 0019](decisions/0019-gewrit-register-and-unlinked-filings.md)
+  (proposed; written as ADR 0017, renumbered 2026-09-24) +
+  [`plans/gewrit-paperless.md`](plans/gewrit-paperless.md) ·
+  2026-09-09 — **paperless-ngx becomes the household's document system of
+  record**; Heorth stores *links only* and never the bytes, the OCR text or an
+  index of either (which keeps ADR 0006 §1 intact and ADR 0005 about KithLedger
+  notes). The module is **Gewrit** (OE *gewrit* — a writing, deed, charter; no
+  rune, like Weorc), replacing the placeholder name **Office**. Triage found the
+  premise was false: `CONTEXT.md` said documents "stay in Library until Office
+  exists", but Heorth's Library module is a media shelf (Trakt + LibraryThing,
+  `MEDIA_TYPES` book/movie/series) and no schema anywhere has an attachment or
+  document column — so documents never had a home, and Ethel's manuals, Feoh's
+  invoices and Weorc's service reports were all working around the same hole.
+  Shape: this is **ADR 0001's category, fourth instance**, with a new
+  *self-hosted* sub-case (an API token, no tenant, no OAuth) rather than a
+  fourth provider taxonomy; a three-method read-only `DocumentProvider` with the
+  API version pinned (`Accept: application/json; version=10`);
+  a register table `gewrit_filings` whose row is a **Filing** — a document, a
+  `relation` saying what it is *to that thing*, and **typed nullable FK anchors**
+  (asset, place, transaction, routine, occurrence) under an **at-most-one**
+  CHECK, so Weorc's anchor shape (ADR 0014) carries over and an unanchored
+  Filing is a first-class row; **one register page** listing anchored and
+  unanchored Filings together, with the configured `PAPERLESS_HOUSEHOLD_TAG`
+  sweeping documents into the register so an unanchored document is reachable
+  without a member attaching it to anything; **no Filing, no proxy** as the whole
+  authorisation model for streaming preview/thumb/download through Heorth; pull
+  not push (the paperless webhook action exists and is declined) with rot marked
+  stale rather than deleted. Rejected: letting paperless hold the references in
+  custom fields, deep links into its UI, and its share links. Deferred by
+  choice: capture/upload, anchor-suggestion rules, KithLedger person anchors,
+  meter readings.
+  **Two corrections the same day, both recorded in the ADR:** a document may be
+  **unanchored** (so no `householdId` anchor column, and the CHECK relaxed from
+  exactly-one to at-most-one), and — reversing the first pass — Gewrit **does**
+  get a top-level register page, because an unanchored document with no register
+  is unreachable rather than merely unattached. Also in
+  [`strategy.md`](strategy.md) (Phase 5+) and
+  [`../CONTEXT.md`](../CONTEXT.md) (Gewrit, Filing, Ethel).
+  **Timing is the honest part:** ADR 0015 §5 and ADR 0016 refuse a third
+  pre-deployment slice, so nothing is built until Phase 3 is deployed — this is
+  a decided shape, not queued work.
+  **Update 2026-09-24:** a narrower v1 shipped anyway under
+  [ADR 0017](decisions/0017-gewrit-documents-stay-in-paperless.md) (links from
+  Paperless documents to Ethel assets and places); this entry's register design
+  is now the proposed ADR 0019, rewritten as a delta against what was built.
+
 - **A name for chores** →
   [ADR 0014](decisions/0014-weorc-owns-recurring-household-work.md) (accepted) ·
   2026-08-24 — the domain is **Weorc** (OE *weorc*, work/labour; **no rune** —

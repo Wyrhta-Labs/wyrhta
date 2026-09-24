@@ -45,8 +45,10 @@ estate; counterpart to Feoh's movable wealth): the building as a tree of
 **Places**, the **Assets** in them (appliances, vehicles), the **Facilities** that
 serve them, and the upkeep *facts* that belong to a thing (warranty, the stated
 service interval). Manuals and other documents are explicitly out of scope here
-(the Ethel v1 spec) — they are **Gewrit's**, which links a Paperless document to an asset or place (ADR 0017). The recurring work itself is **Weorc**, which anchors routines here
-(ADR 0014); service contacts are KithLedger people referenced from a routine.
+(the Ethel v1 spec) — they are **Gewrit's**, which links a Paperless document
+to an asset or place (ADR 0017). The recurring work itself is **Weorc**, which
+anchors routines here (ADR 0014); service contacts are KithLedger people
+referenced from a routine.
 _Avoid_: The Home, house profile, inventory
 
 **Asset**:
@@ -73,11 +75,28 @@ acts on it is **Weorc's** and never reads that field as a trigger (ADR 0014 §4)
 _Avoid_: utility (that is a bill in Feoh), system, installation, amenity
 
 **Gewrit**:
-The household's document references (ADR 0017): a document hosted in
-Paperless-ngx, attached to an Ethel asset or place in a role (manual, warranty,
-invoice, contract, certificate, other). Heorth keeps the reference and a
-metadata snapshot, never the file.
-_Avoid_: Office (the former placeholder name), attachment, upload
+The household's document references (ADR 0017; OE *gewrit* — a writing,
+document, deed, charter; ancestor of modern "writ"; no rune, like Weorc): a
+document hosted in Paperless-ngx, attached to an Ethel asset or place in a role
+(manual, warranty, invoice, contract, certificate, other). Paperless-ngx is the
+system of record for the files, their OCR and their search; Heorth keeps the
+reference and a metadata snapshot, never the file. Its growth — a register page,
+unanchored documents, a household-tag sweep, more anchor kinds — is proposed in
+ADR 0019, not built. Meter readings, once listed under Office, are structured
+data rather than documents and are not Gewrit's.
+_Avoid_: Office (the former placeholder name), DMS, file manager, attachment,
+upload
+
+**Filing** (proposed, ADR 0019):
+The entity ADR 0019 proposes for Gewrit's register: the household's row for one
+document it cares about, with a **relation** and an **optional anchor** — an
+Ethel asset or place, a Feoh transaction, a Weorc routine or occurrence, or
+nothing at all, following Weorc's anchor (ADR 0014), so "the boiler's manual"
+and "the house insurance policy" are one kind of row. **Not built:** v1 has
+*links*, each with exactly one Ethel anchor and a *role* (ADR 0017). Whether a
+Filing becomes a relaxed link, and whether `relation` replaces `role`, are open
+decisions in ADR 0019.
+_Avoid_: attachment, upload, file
 
 **Provider**:
 A pluggable adapter to an external System of Record (e.g. Microsoft 365 calendar,
@@ -119,7 +138,8 @@ The Weorc entity: a recurring definition (schedule or interval) with an optional
 an owning member; carries no points, allowance or rotation mechanics. Two modes
 ship: `fixed` (a grid pinned to an anchor date, fast-forwarding over a gap to one
 overdue occurrence, never a backlog) and `from_completion` (recurs from when it
-was last done, so it drifts by design).
+was last done, so it drifts by design). A third, `once`, is specified but not
+built — see **Deadline** and ADR 0018.
 _Avoid_: chore (as a model name), schedule, plan
 
 **Maintenance Plan**:
@@ -149,6 +169,53 @@ between, a payee). Members are parties whose truth lives in Heorth (Feoh caches
 only id + display name); external parties may optionally cross-reference a
 KithLedger person, never merge with one.
 _Avoid_: contact, payee (as a model name)
+
+**Subscription**:
+The Feoh entity for a recurring commitment to a service — Netflix, the mobile
+plan, the newspaper. Not a parallel entity: it is a **recurring bill** plus a
+detail row (`feoh_subscriptions`), the same shape a vehicle is an Ethel asset
+plus a detail row. The bill owns payee, amount, cadence and envelope; the detail
+row owns what a bill cannot say — the cancellation URL, a billed foreign
+currency with a hand-maintained rate, the trial end, the minimum term and its
+notice period. The **cancel-by date is derived** (term end minus notice), not
+stored, so it cannot fall out of step with an extended contract; status is
+likewise derived from the dates. A **trial** is the bill at its trial price plus
+a price change effective the day after the trial ends, so free months forecast
+as free; once that date passes the subscription **needs its price confirmed**,
+and the household confirms or corrects it on a pre-filled form rather than
+Heorth writing an amount by itself.
+_Avoid_: recurring payment (that is the bill), plan, contract
+
+**Committed Spend**:
+What the household has already obliged itself to pay, projected forward: the sum
+of what falls due per month over a horizon, with a per-envelope breakdown and a
+normalised monthly cost per bill. Feoh's **forecast** is exactly this and
+nothing more — it says what *leaves*, never what remains, because no expected
+income is modelled. It covers **every recurring bill**, not just subscriptions;
+the reader narrows it with a multiselect over **envelopes**, which are Feoh's
+categories (there is no separate category field), and a filtered view always
+shows the unfiltered household total beside its own. A future foreign-currency
+line is an **estimate** and is labelled one; a booked one is the transaction's
+real amount.
+_Avoid_: budget (that is an envelope), runway, cash flow, projection (reserve
+that for Weorc's projection into the task provider), category (as a field name —
+the envelope is the category)
+
+**Deadline**:
+A Weorc **Routine** in `mode = 'once'`: a dated obligation that exists because
+of a household fact, happens once, and deactivates its routine when its single
+Occurrence goes terminal (ADR 0018). A Feoh trial end is the first one; a
+Wyrtgeard "sow by" date will be another. The test for whether something belongs
+here is **provenance, not recurrence** — work derived from a fact the household
+holds is Weorc's; work a member merely thought of is a Task in the provider.
+An ignored Deadline **keeps nudging**: while its Occurrence is open and overdue
+the tick reschedules its Task every few days, and **skipping** is how a member
+says "stop asking" — completing means it was dealt with, so a household never
+has to mark undone work as done to get quiet. A Deadline's Task also **carries
+the money at stake** where the fact behind it is financial ("trial ends 4 Oct,
+then €13.99/month"), rendered by the domain that owns the number and amended in
+place when that number changes.
+_Avoid_: reminder, alert, one-time task
 
 **Hearth View**:
 Heorth's always-on kitchen-touchscreen surface: glanceable week/month with meal

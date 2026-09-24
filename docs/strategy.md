@@ -178,6 +178,24 @@ Unordered until Phase 3 learnings land:
   life, investments, retirement projection strategies. Bank ingestion shipped
   2026-09 behind ADR 0016 (Firefly III as an optional sidecar; Feoh remains
   the ledger). ADR 0016 named this the last pre-deployment slice; ADR 0017 added Gewrit v1 after it, and Phase 3 deployment follows that.
+  - **Committed-spend forecast** (subscriptions), the household's own ask,
+    modelled on the iOS app *Subtrack*: a normalised monthly cost per recurring
+    bill, a forward timeline of what falls due with a per-envelope breakdown
+    over **every** recurring bill (rent and insurance included, narrowed by a
+    multiselect over envelopes — Feoh's categories, so no new taxonomy),
+    subscription facts a bill lacks today (trial end, minimum term, cancel-by,
+    the URL you cancel at), announced future price changes so a forecast that
+    spans one is right, and a foreign billed amount with a hand-maintained rate
+    shown as an *estimate* while the ledger stays single-currency (ADR 0016 §7
+    intact). It is a fold over the existing `listOccurrences` engine, **not** a
+    second projector. Trial-end and cancel-by dates reach the task inbox through
+    **Weorc's** engine as one-off deadlines that keep nudging until they are
+    dealt with or deliberately skipped —
+    [ADR 0018](decisions/0018-weorc-projects-one-off-deadlines.md) (proposed),
+    which costs the task provider interface its first new method.
+    Deliberately **not** a balance projection: no expected income is modelled,
+    so it says what leaves, never what remains. Spec:
+    [Feoh committed-spend forecast](superpowers/specs/2026-09-09-feoh-committed-spend-forecast-design.md).
 - **Weorc** module growth (OE *weorc* — work, labour; ADR 0014): further growth
   of the domain beyond what Phase 4's first slice already shipped (anchored
   *and* unanchored **Routines**, their completion history, and the one
@@ -186,7 +204,12 @@ Unordered until Phase 3 learnings land:
   same projection engine rather than growing a second one. Still explicitly
   **no** points, allowances or rotation mechanics (see Out of scope). Sequenced
   after Phase 3 because which further chores a household actually wants
-  projected is exactly the kind of thing real use reprioritises.
+  projected is exactly the kind of thing real use reprioritises. One extension
+  is already specified: **one-off deadlines** (`mode = 'once'`), so a dated
+  obligation derived from a household fact — Feoh's trial end, later
+  Wyrtgeard's "sow by" — projects through the same engine instead of growing a
+  second one ([ADR 0018](decisions/0018-weorc-projects-one-off-deadlines.md),
+  proposed).
 - **Wyrtgeard** module (OE "plant-yard" — the Garden): a household **plant
   library** (what's growing, where, care notes) plus **Ger** (futhorc ᛄ,
   "harvest") — the grow-your-own-food subfeature: planting-calendar planning,
@@ -201,6 +224,23 @@ Unordered until Phase 3 learnings land:
 - Calendar write-back (provider phase 2).
 - Provider matrix: Google Calendar, CalDAV; Google Tasks and the partner task
   project.
+- **Gewrit** growth (OE *gewrit* — a writing, document, deed;
+  [ADR 0019](decisions/0019-gewrit-register-and-unlinked-filings.md), proposed).
+  v1 shipped before deployment under ADR 0017: Paperless-ngx documents linked to
+  Ethel assets and places. ADR 0019 proposes the rest of the original design on
+  top of it: a *register* of **Filings** — the boiler's manual on the boiler, the
+  invoice on the Feoh transaction, the service report on the Weorc occurrence,
+  and the insurance policy on nothing at all. A Filing's anchor is optional
+  (Weorc's anchor, ADR 0014), **one page lists the whole register**, anchored
+  and unanchored together, and a household tag sweeps documents into it. Still
+  behind the `DocumentProvider` per
+  [ADR 0001](decisions/0001-external-systems-of-record-behind-providers.md)'s
+  category — a **self-hosted** system of record, so no tenant and no OAuth, just
+  a household API token — and Heorth still never stores or indexes the bytes.
+  Where the proposal differs from what v1 built, ADR 0019 lists the open
+  decisions. Plan: [Gewrit — reference documents from paperless-ngx](plans/gewrit-paperless.md).
+  **Explicitly after Phase 3**: ADR 0015 §5 and ADR 0016 refuse a further
+  pre-deployment slice, and this is not one.
 - Identity Phase B: Heorth-issued member JWTs; satellite UIs.
 - Hearth View device tokens (wall display without login ceremony).
 - Android PWA polish. (Localisation moved into Phase 2 scope, 2026-07-27 —
