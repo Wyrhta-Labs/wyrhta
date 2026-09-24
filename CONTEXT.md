@@ -45,8 +45,7 @@ estate; counterpart to Feoh's movable wealth): the building as a tree of
 **Places**, the **Assets** in them (appliances, vehicles), the **Facilities** that
 serve them, and the upkeep *facts* that belong to a thing (warranty, the stated
 service interval). Manuals and other documents are explicitly out of scope here
-(the Ethel v1 spec) — they stay in Library until the future **Office** module
-exists. The recurring work itself is **Weorc**, which anchors routines here
+(the Ethel v1 spec) — they are **Gewrit's**, which links a Paperless document to an asset or place (ADR 0017). The recurring work itself is **Weorc**, which anchors routines here
 (ADR 0014); service contacts are KithLedger people referenced from a routine.
 _Avoid_: The Home, house profile, inventory
 
@@ -73,9 +72,12 @@ in. Carries the **stated** service interval as documentation; the routine that
 acts on it is **Weorc's** and never reads that field as a trigger (ADR 0014 §4).
 _Avoid_: utility (that is a bill in Feoh), system, installation, amenity
 
-**Office** (future):
-Document management for the household (insurance policies, contracts, meter
-readings). Does not exist yet; until it does, documents stay in Library.
+**Gewrit**:
+The household's document references (ADR 0017): a document hosted in
+Paperless-ngx, attached to an Ethel asset or place in a role (manual, warranty,
+invoice, contract, certificate, other). Heorth keeps the reference and a
+metadata snapshot, never the file.
+_Avoid_: Office (the former placeholder name), attachment, upload
 
 **Provider**:
 A pluggable adapter to an external System of Record (e.g. Microsoft 365 calendar,
