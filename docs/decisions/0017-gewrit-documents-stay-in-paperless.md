@@ -44,7 +44,8 @@ second, weaker copy.
    deployment, bank ingestion (ADR 0016) took the second slice, and ADR 0016
    said a third should be refused. This slice is taken against that advice, and this ADR is the one
    ADR 0015 §5 requires before such a slice starts.
-   <!-- Christian: why the third slice went ahead -->
+   It went ahead because deployment was held up by push issues and by
+   project-management issues, not because the reasoning of ADR 0016 changed.
    Phase 3 deployment follows Gewrit v1; a fourth pre-deployment slice would
    need its own ADR.
 
