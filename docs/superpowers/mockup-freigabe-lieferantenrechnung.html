@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Freigabe – Lieferantenrechnung</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f0f2f5;
+      --surface: #ffffff;
+      --surface-2: #f8f9fb;
+      --border: #e2e6ea;
+      --border-strong: #cdd2d8;
+      --text: #1a1d23;
+      --text-muted: #6b7380;
+      --text-light: #9aa0ab;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-light: #eff4ff;
+      --success: #16a34a;
+      --success-bg: #f0fdf4;
+      --success-border: #bbf7d0;
+      --danger: #dc2626;
+      --danger-bg: #fff5f5;
+      --danger-border: #fecaca;
+      --warning: #d97706;
+      --warning-bg: #fffbeb;
+      --warning-border: #fde68a;
+      --accent: #7c3aed;
+      --radius: 8px;
+      --radius-sm: 5px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.05);
+      --shadow: 0 4px 12px rgba(0,0,0,.08);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13.5px;
+      line-height: 1.5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+    }
+    .topbar-brand {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--primary);
+      letter-spacing: -.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .topbar-brand svg { flex-shrink: 0; }
+    .topbar-sep { width: 1px; height: 20px; background: var(--border); }
+    .topbar-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .topbar-badge {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      color: var(--warning);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+    .topbar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .topbar-user {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── BREADCRUMB ── */
+    .breadcrumb {
+      padding: 8px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .breadcrumb a { color: var(--primary); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+
+    /* ── MAIN LAYOUT ── */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      gap: 0;
+    }
+
+    /* ── LEFT: PDF VIEWER ── */
+    .pdf-panel {
+      width: 50%;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      background: #3a3f47;
+      border-right: 1px solid #2a2d33;
+    }
+    .pdf-toolbar {
+      background: #2e3238;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #23262b;
+    }
+    .pdf-toolbar-label {
+      font-size: 12px;
+      color: #adb5bd;
+      font-weight: 500;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pdf-toolbar-actions {
+      display: flex;
+      gap: 4px;
+    }
+    .icon-btn {
+      width: 28px; height: 28px;
+      border: 1px solid #444;
+      background: #3a3f47;
+      border-radius: var(--radius-sm);
+      color: #adb5bd;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .15s;
+    }
+    .icon-btn:hover { background: #4a5058; color: #fff; }
+    .page-nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #adb5bd;
+    }
+    .page-nav input {
+      width: 34px;
+      text-align: center;
+      background: #23262b;
+      border: 1px solid #444;
+      color: #e0e0e0;
+      border-radius: 4px;
+      padding: 2px 4px;
+      font-size: 12px;
+    }
+    .pdf-content {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+      scrollbar-width: thin;
+      scrollbar-color: #555 #3a3f47;
+    }
+
+    /* Fake PDF Document */
+    .pdf-page {
+      background: #fff;
+      width: 100%;
+      max-width: 520px;
+      min-height: 735px;
+      border-radius: 3px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.35);
+      padding: 40px 44px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #222;
+      position: relative;
+    }
+    .pdf-page-watermark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-30deg);
+      font-size: 64px;
+      font-weight: 800;
+      color: rgba(37,99,235,.06);
+      pointer-events: none;
+      white-space: nowrap;
+      letter-spacing: 6px;
+    }
+    .pdf-header { display: flex; justify-content: space-between; margin-bottom: 28px; }
+    .pdf-logo {
+      font-size: 20px; font-weight: 800; color: #1e3a5f;
+      display: flex; flex-direction: column; line-height: 1.1;
+    }
+    .pdf-logo span { font-size: 9px; font-weight: 400; color: #666; letter-spacing: .5px; text-transform: uppercase; }
+    .pdf-sender-block { font-size: 10px; color: #555; line-height: 1.6; text-align: right; }
+    .pdf-sender-block strong { font-size: 12px; color: #222; }
+    .pdf-receiver { margin-bottom: 16px; }
+    .pdf-receiver-label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 2px; }
+    .pdf-meta-row { display: flex; justify-content: space-between; font-size: 10.5px; color: #555; margin-bottom: 20px; padding-top: 10px; border-top: 1px solid #eee; }
+    .pdf-meta-row span strong { color: #222; }
+    h3.pdf-section { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #444; margin-bottom: 8px; }
+    .pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .pdf-table thead tr { background: #f5f7fa; }
+    .pdf-table th { font-size: 10px; font-weight: 700; text-align: left; padding: 6px 8px; border-bottom: 1.5px solid #e0e0e0; color: #555; text-transform: uppercase; letter-spacing: .4px; }
+    .pdf-table th.right, .pdf-table td.right { text-align: right; }
+    .pdf-table td { font-size: 11px; padding: 6px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+    .pdf-table td.pos { color: #888; font-size: 10px; }
+    .pdf-totals { margin-left: auto; width: 220px; margin-bottom: 20px; }
+    .pdf-totals-row { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; color: #444; }
+    .pdf-totals-row.total { border-top: 1.5px solid #222; padding-top: 6px; margin-top: 3px; font-weight: 700; font-size: 13px; color: #1e3a5f; }
+    .pdf-totals-row.mwst { color: #888; font-size: 10px; }
+    .pdf-footer { font-size: 9.5px; color: #888; border-top: 1px solid #eee; padding-top: 12px; margin-top: 16px; line-height: 1.7; }
+    .pdf-footer-cols { display: flex; gap: 20px; }
+    .pdf-footer-cols div { flex: 1; }
+    .pdf-iban { font-family: monospace; font-size: 10px; letter-spacing: .5px; }
+    .pdf-stamp {
+      position: absolute;
+      bottom: 56px;
+      right: 44px;
+      width: 80px; height: 80px;
+      border: 3px solid rgba(220,38,38,.25);
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: rgba(220,38,38,.35);
+      font-weight: 700;
+      font-size: 10px;
+      line-height: 1.3;
+      transform: rotate(-12deg);
+      pointer-events: none;
+    }
+
+    /* ── RIGHT: DATA PANEL ── */
+    .data-panel {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) var(--bg);
+    }
+    .data-scroll {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface-2);
+    }
+    .card-header-icon {
+      width: 24px; height: 24px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .card-header-icon.meta { background: #ede9fe; color: #7c3aed; }
+    .card-header-icon.vorgang { background: #dbeafe; color: #2563eb; }
+    .card-header-icon.bestellung { background: #d1fae5; color: #059669; }
+    .card-header h2 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -.1px;
+    }
+    .card-header .card-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+    .card-body { padding: 14px 16px; }
+
+    /* Field Grid */
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 16px;
+    }
+    .field-grid.cols-3 {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+    .field { display: flex; flex-direction: column; gap: 2px; }
+    .field-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+    .field-value {
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .field-value.mono { font-family: monospace; font-size: 12px; }
+    .field-value.muted { color: var(--text-muted); font-weight: 400; }
+    .field-value.amount {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .field-value.amount-total {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    /* Badges / Chips */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .badge.pending { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning-border); }
+    .badge.matched { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+    .badge.partial { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+    .badge.email { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
+    .badge.scan { background: #faf5ff; color: #7c3aed; border: 1px solid #e9d5ff; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 12px 0;
+    }
+
+    /* Positions Table */
+    .pos-table { width: 100%; border-collapse: collapse; }
+    .pos-table thead tr { background: var(--surface-2); }
+    .pos-table th {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      color: var(--text-muted);
+      padding: 7px 10px;
+      border-bottom: 1.5px solid var(--border);
+      text-align: left;
+    }
+    .pos-table th.right, .pos-table td.right { text-align: right; }
+    .pos-table td {
+      font-size: 12px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .pos-table tr:last-child td { border-bottom: none; }
+    .pos-table tr:hover td { background: var(--surface-2); }
+    .match-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+    .match-chip.ok { background: var(--success-bg); color: var(--success); }
+    .match-chip.warn { background: var(--warning-bg); color: var(--warning); }
+    .match-chip.err { background: var(--danger-bg); color: var(--danger); }
+
+    /* Deviation */
+    .deviation { font-size: 10.5px; color: var(--warning); font-weight: 600; }
+    .deviation.pos { color: var(--success); }
+    .deviation.neg { color: var(--danger); }
+
+    /* Action Bar */
+    .action-bar {
+      position: sticky;
+      bottom: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      box-shadow: 0 -4px 16px rgba(0,0,0,.06);
+    }
+    .action-bar-info {
+      flex: 1;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .action-bar-info strong { color: var(--text); }
+    .btn {
+      padding: 8px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .15s;
+    }
+    .btn-ghost {
+      background: transparent;
+      border: 1.5px solid var(--border-strong);
+      color: var(--text-muted);
+    }
+    .btn-ghost:hover { border-color: var(--text-muted); color: var(--text); background: var(--surface-2); }
+    .btn-danger-outline {
+      background: var(--danger-bg);
+      border: 1.5px solid var(--danger-border);
+      color: var(--danger);
+    }
+    .btn-danger-outline:hover { background: #fee2e2; }
+    .btn-warning-outline {
+      background: var(--warning-bg);
+      border: 1.5px solid var(--warning-border);
+      color: var(--warning);
+    }
+    .btn-warning-outline:hover { background: #fef3c7; }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--primary-hover); }
+
+    /* Alert Banner */
+    .alert {
+      padding: 9px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.5;
+    }
+    .alert.warn { background: var(--warning-bg); border: 1px solid var(--warning-border); color: #92400e; }
+    .alert.info { background: var(--primary-light); border: 1px solid #bfdbfe; color: #1e40af; }
+    .alert svg { flex-shrink: 0; margin-top: 1px; }
+    .alert-title { font-weight: 700; }
+
+    /* Inline source tag */
+    .source-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 600;
+      padding: 2px 8px; border-radius: 4px;
+    }
+    .source-tag.api { background: #ede9fe; color: #6d28d9; }
+    .source-tag.email { background: #e0f2fe; color: #0369a1; }
+
+    /* OCR confidence bar */
+    .confidence-bar { display: flex; align-items: center; gap: 8px; }
+    .confidence-track {
+      flex: 1; height: 5px; background: var(--border);
+      border-radius: 3px; overflow: hidden;
+    }
+    .confidence-fill { height: 100%; border-radius: 3px; background: var(--success); }
+    .confidence-fill.medium { background: var(--warning); }
+    .confidence-pct { font-size: 11px; font-weight: 700; color: var(--text-muted); min-width: 32px; text-align: right; }
+
+    /* Timeline */
+    .timeline { display: flex; flex-direction: column; gap: 0; }
+    .tl-item { display: flex; gap: 12px; padding: 8px 0; }
+    .tl-item:not(:last-child) { border-bottom: 1px solid var(--border); }
+    .tl-dot-col { display: flex; flex-direction: column; align-items: center; padding-top: 3px; }
+    .tl-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .tl-dot.done { background: var(--success); }
+    .tl-dot.active { background: var(--warning); box-shadow: 0 0 0 3px var(--warning-bg); }
+    .tl-dot.pending { background: var(--border-strong); }
+    .tl-body { flex: 1; }
+    .tl-label { font-size: 12px; font-weight: 600; color: var(--text); }
+    .tl-meta { font-size: 11px; color: var(--text-muted); }
+
+    /* Tag list */
+    .tag-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tag {
+      background: var(--surface-2); border: 1px solid var(--border);
+      font-size: 11px; color: var(--text-muted);
+      padding: 2px 8px; border-radius: 4px;
+    }
+
+    /* Scrollbar style */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="9" y1="13" x2="15" y2="13"/>
+      <line x1="9" y1="17" x2="12" y2="17"/>
+    </svg>
+    Dokumenten-Freigabe
+  </div>
+  <div class="topbar-sep"></div>
+  <span class="topbar-title">Lieferantenrechnung</span>
+  <span class="topbar-badge">⏳ Ausstehend</span>
+  <div class="topbar-right">
+    <div class="topbar-user">
+      <div class="avatar">MK</div>
+      M. Klein · Buchhaltung
+    </div>
+  </div>
+</div>
+
+<!-- BREADCRUMB -->
+<div class="breadcrumb">
+  <a href="#">Posteingang</a>
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+  <a href="#">Rechnungen</a>
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+  <span>RE-2024-00847 · Müller &amp; Partner GmbH</span>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- ══ LEFT: PDF VIEWER ══ -->
+  <div class="pdf-panel">
+    <div class="pdf-toolbar">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e84c4c" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span class="pdf-toolbar-label">RE-2024-00847_Mueller_Partner.pdf</span>
+      <div class="page-nav">
+        <button class="icon-btn" title="Vorherige Seite">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <input type="text" value="1" /> / 2
+        <button class="icon-btn" title="Nächste Seite">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+      <div class="pdf-toolbar-actions">
+        <button class="icon-btn" title="Verkleinern">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <button class="icon-btn" title="Vergrößern">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <button class="icon-btn" title="Herunterladen">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="pdf-content">
+      <!-- Rendered fake PDF page -->
+      <div class="pdf-page">
+        <div class="pdf-page-watermark">EINGANG</div>
+
+        <div class="pdf-header">
+          <div class="pdf-logo">
+            MÜLLER &amp; PARTNER
+            <span>GmbH · Maschinenbau &amp; Zulieferung</span>
+          </div>
+          <div class="pdf-sender-block">
+            <strong>Müller &amp; Partner GmbH</strong><br>
+            Industriestraße 42<br>
+            74074 Heilbronn<br>
+            Tel: +49 7131 4820-0<br>
+            info@mueller-partner.de<br>
+            USt-IdNr.: DE 219 847 563
+          </div>
+        </div>
+
+        <div class="pdf-receiver">
+          <div class="pdf-receiver-label">Rechnungsempfänger</div>
+          <strong>WUS Technik GmbH</strong><br>
+          Musterstraße 17<br>
+          70173 Stuttgart
+        </div>
+
+        <div class="pdf-meta-row">
+          <span><strong>Rechnungsnummer:</strong> RE-2024-00847</span>
+          <span><strong>Datum:</strong> 21.03.2024</span>
+          <span><strong>Fälligkeit:</strong> 20.04.2024</span>
+          <span><strong>Bestellref.:</strong> PO-2024-0312</span>
+        </div>
+
+        <h3 class="pdf-section">Rechnungspositionen</h3>
+        <table class="pdf-table">
+          <thead>
+            <tr>
+              <th>Pos.</th>
+              <th>Bezeichnung</th>
+              <th class="right">Menge</th>
+              <th class="right">Einzel €</th>
+              <th class="right">Gesamt €</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="pos">01</td>
+              <td>Hydraulikpumpe HP-220 (Artikel 4471)</td>
+              <td class="right">4</td>
+              <td class="right">312,50</td>
+              <td class="right">1.250,00</td>
+            </tr>
+            <tr>
+              <td class="pos">02</td>
+              <td>Wartungskit Hydraulik Typ A</td>
+              <td class="right">8</td>
+              <td class="right">48,90</td>
+              <td class="right">391,20</td>
+            </tr>
+            <tr>
+              <td class="pos">03</td>
+              <td>Dichtungssatz 120mm (10 Stk.)</td>
+              <td class="right">12</td>
+              <td class="right">24,00</td>
+              <td class="right">288,00</td>
+            </tr>
+            <tr>
+              <td class="pos">04</td>
+              <td>Frachtpauschale</td>
+              <td class="right">1</td>
+              <td class="right">35,00</td>
+              <td class="right">35,00</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="pdf-totals">
+          <div class="pdf-totals-row"><span>Nettobetrag</span><span>1.964,20 €</span></div>
+          <div class="pdf-totals-row mwst"><span>MwSt. 19 %</span><span>373,20 €</span></div>
+          <div class="pdf-totals-row total"><span>Gesamtbetrag</span><span>2.337,40 €</span></div>
+        </div>
+
+        <div class="pdf-footer">
+          <div class="pdf-footer-cols">
+            <div>
+              <strong>Zahlungsbedingungen</strong><br>
+              30 Tage netto, 2 % Skonto bei Zahlung<br>
+              innerhalb von 10 Tagen.
+            </div>
+            <div>
+              <strong>Bankverbindung</strong><br>
+              Volksbank Heilbronn<br>
+              <span class="pdf-iban">IBAN: DE82 6209 0100 0012 3456 78</span><br>
+              BIC: GENODES1VBH
+            </div>
+          </div>
+        </div>
+
+        <div class="pdf-stamp">EINGANG<br>22.03.2024<br>BUCHHALTUNG</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ RIGHT: DATA PANEL ══ -->
+  <div class="data-panel">
+    <div class="data-scroll">
+
+      <!-- METADATEN -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon meta">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+          </div>
+          <h2>Metadaten</h2>
+          <span class="card-subtitle">Automatisch erfasst</span>
+        </div>
+        <div class="card-body">
+          <div class="field-grid cols-3" style="margin-bottom:12px">
+            <div class="field">
+              <span class="field-label">Erfasst am</span>
+              <span class="field-value">22.03.2024 08:14</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Quelle</span>
+              <span class="field-value">
+                <span class="badge email"><span class="dot"></span>E-Mail-Eingang</span>
+              </span>
+            </div>
+            <div class="field">
+              <span class="field-label">Eingangsschnittstelle</span>
+              <span class="field-value">
+                <span class="source-tag api">API · IMAP-Connector</span>
+              </span>
+            </div>
+          </div>
+          <div class="field-grid cols-3" style="margin-bottom:12px">
+            <div class="field">
+              <span class="field-label">Absender</span>
+              <span class="field-value muted" style="font-size:12px">rechnungen@mueller-partner.de</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Dokumenttyp (KI)</span>
+              <span class="field-value">Lieferantenrechnung</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Dateiname</span>
+              <span class="field-value mono muted" style="font-size:11px">RE-2024-00847_Mueller_Partner.pdf</span>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="section-label">OCR-Qualität &amp; Verarbeitung</div>
+          <div class="field-grid" style="margin-bottom:10px">
+            <div class="field">
+              <span class="field-label">Texterkennung (OCR)</span>
+              <div class="confidence-bar" style="margin-top:4px">
+                <div class="confidence-track"><div class="confidence-fill" style="width:96%"></div></div>
+                <span class="confidence-pct" style="color:var(--success)">96 %</span>
+              </div>
+            </div>
+            <div class="field">
+              <span class="field-label">Strukturerkennung</span>
+              <div class="confidence-bar" style="margin-top:4px">
+                <div class="confidence-track"><div class="confidence-fill medium" style="width:81%"></div></div>
+                <span class="confidence-pct" style="color:var(--warning)">81 %</span>
+              </div>
+            </div>
+          </div>
+          <div class="field-grid cols-3">
+            <div class="field">
+              <span class="field-label">Seitenanzahl</span>
+              <span class="field-value">2</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Dateigröße</span>
+              <span class="field-value">243 KB</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Dokument-ID</span>
+              <span class="field-value mono muted" style="font-size:11px">DOC-7f3a9c1</span>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="section-label">Schlagworte (KI-generiert)</div>
+          <div class="tag-list">
+            <span class="tag">Hydraulikpumpe</span>
+            <span class="tag">Maschinenbau</span>
+            <span class="tag">Wartungsmaterial</span>
+            <span class="tag">Frachtkosten</span>
+            <span class="tag">MwSt. 19 %</span>
+            <span class="tag">Skonto 2 %</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- VORGANGSDATEN -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon vorgang">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </div>
+          <h2>Vorgangsdaten</h2>
+          <span class="card-subtitle">Dolibarr · automatisch abgeglichen</span>
+        </div>
+        <div class="card-body">
+
+          <div class="alert warn" style="margin-bottom:12px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div><span class="alert-title">Mengenabweichung bei Position 02 erkannt.</span> Rechnung: 8 Stk. · Bestellung: 6 Stk. (+2 Stk. / +97,80 €). Bitte prüfen.</div>
+          </div>
+
+          <div class="section-label" style="margin-bottom:8px">Rechnungsdaten (erfasst)</div>
+          <div class="field-grid cols-3" style="margin-bottom:12px">
+            <div class="field">
+              <span class="field-label">Rechnungsnummer</span>
+              <span class="field-value mono">RE-2024-00847</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Rechnungsdatum</span>
+              <span class="field-value">21.03.2024</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Fälligkeitsdatum</span>
+              <span class="field-value">20.04.2024</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Nettobetrag</span>
+              <span class="field-value amount">1.964,20 €</span>
+            </div>
+            <div class="field">
+              <span class="field-label">MwSt. (19 %)</span>
+              <span class="field-value">373,20 €</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Bruttobetrag</span>
+              <span class="field-value amount-total">2.337,40 €</span>
+            </div>
+          </div>
+
+          <div class="field-grid" style="margin-bottom:14px">
+            <div class="field">
+              <span class="field-label">Lieferant (Dolibarr)</span>
+              <span class="field-value">Müller &amp; Partner GmbH</span>
+              <span class="field-value muted" style="font-size:11px">Kreditor-Nr. K-00214 · USt-IdNr. DE219847563</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Dolibarr-Beleg-Nr.</span>
+              <span class="field-value mono">FINF-2024-0422</span>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="section-label" style="margin-bottom:8px">Verknüpfte Bestellung · PO-2024-0312</div>
+
+          <div class="field-grid cols-3" style="margin-bottom:12px">
+            <div class="field">
+              <span class="field-label">Bestelldatum</span>
+              <span class="field-value">08.03.2024</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Besteller</span>
+              <span class="field-value">T. Bergmann · Einkauf</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Bestellwert (netto)</span>
+              <span class="field-value amount">1.866,40 €</span>
+            </div>
+          </div>
+
+          <!-- Position Matching Table -->
+          <div class="card-header-icon" style="margin-bottom:8px; background:none; padding:0;">
+            <span class="section-label">Positionsabgleich</span>
+          </div>
+          <div style="overflow-x:auto; border-radius:var(--radius-sm); border:1px solid var(--border);">
+            <table class="pos-table">
+              <thead>
+                <tr>
+                  <th>Pos.</th>
+                  <th>Bezeichnung</th>
+                  <th class="right">Best. Menge</th>
+                  <th class="right">RE Menge</th>
+                  <th class="right">RE Preis</th>
+                  <th class="right">Abweichung</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="color:var(--text-muted);font-size:11px">01</td>
+                  <td>Hydraulikpumpe HP-220</td>
+                  <td class="right">4</td>
+                  <td class="right">4</td>
+                  <td class="right">312,50 €</td>
+                  <td class="right"><span class="deviation pos">0,00 €</span></td>
+                  <td><span class="match-chip ok">✓ OK</span></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-muted);font-size:11px">02</td>
+                  <td>Wartungskit Hydraulik Typ A</td>
+                  <td class="right">6</td>
+                  <td class="right" style="color:var(--warning);font-weight:700">8</td>
+                  <td class="right">48,90 €</td>
+                  <td class="right"><span class="deviation neg">+97,80 €</span></td>
+                  <td><span class="match-chip warn">⚠ Menge</span></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-muted);font-size:11px">03</td>
+                  <td>Dichtungssatz 120mm</td>
+                  <td class="right">12</td>
+                  <td class="right">12</td>
+                  <td class="right">24,00 €</td>
+                  <td class="right"><span class="deviation pos">0,00 €</span></td>
+                  <td><span class="match-chip ok">✓ OK</span></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-muted);font-size:11px">04</td>
+                  <td>Frachtpauschale</td>
+                  <td class="right">—</td>
+                  <td class="right">1</td>
+                  <td class="right">35,00 €</td>
+                  <td class="right"><span class="deviation neg">+35,00 €</span></td>
+                  <td><span class="match-chip warn">⚠ Neu</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="margin-top:12px; display:flex; justify-content:flex-end; gap:16px; font-size:12px;">
+            <span style="color:var(--text-muted)">Gesamtabweichung RE vs. Bestellung:</span>
+            <span style="font-weight:700; color:var(--danger)">+ 132,80 € (netto)</span>
+          </div>
+
+          <div class="divider"></div>
+          <div class="section-label" style="margin-bottom:8px">Bearbeitungsverlauf</div>
+          <div class="timeline">
+            <div class="tl-item">
+              <div class="tl-dot-col"><div class="tl-dot done"></div></div>
+              <div class="tl-body">
+                <div class="tl-label">Dokument erfasst &amp; OCR abgeschlossen</div>
+                <div class="tl-meta">22.03.2024 08:14 · System automatisch</div>
+              </div>
+            </div>
+            <div class="tl-item">
+              <div class="tl-dot-col"><div class="tl-dot done"></div></div>
+              <div class="tl-body">
+                <div class="tl-label">Bestellung PO-2024-0312 verknüpft</div>
+                <div class="tl-meta">22.03.2024 08:14 · Dolibarr-Abgleich</div>
+              </div>
+            </div>
+            <div class="tl-item">
+              <div class="tl-dot-col"><div class="tl-dot done"></div></div>
+              <div class="tl-body">
+                <div class="tl-label">Abweichungen erkannt, zur Prüfung weitergeleitet</div>
+                <div class="tl-meta">22.03.2024 08:15 · System automatisch → M. Klein</div>
+              </div>
+            </div>
+            <div class="tl-item">
+              <div class="tl-dot-col"><div class="tl-dot active"></div></div>
+              <div class="tl-body">
+                <div class="tl-label" style="color:var(--warning)">Freigabe durch Genehmiger ausstehend</div>
+                <div class="tl-meta">Zugewiesen an: M. Klein · seit 22.03.2024</div>
+              </div>
+            </div>
+            <div class="tl-item">
+              <div class="tl-dot-col"><div class="tl-dot pending"></div></div>
+              <div class="tl-body">
+                <div class="tl-label" style="color:var(--text-muted)">Buchung in Dolibarr</div>
+                <div class="tl-meta">Ausstehend</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Spacer so action bar doesn't overlap -->
+      <div style="height:4px"></div>
+    </div>
+
+    <!-- ACTION BAR -->
+    <div class="action-bar">
+      <div class="action-bar-info">
+        <strong>RE-2024-00847</strong> · Müller &amp; Partner GmbH · fällig <strong>20.04.2024</strong>
+        &nbsp;·&nbsp; Brutto: <strong>2.337,40 €</strong>
+      </div>
+      <button class="btn btn-ghost">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Kommentar
+      </button>
+      <button class="btn btn-warning-outline">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        Rückfrage
+      </button>
+      <button class="btn btn-danger-outline">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        Ablehnen
+      </button>
+      <button class="btn btn-primary">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        Genehmigen
+      </button>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
