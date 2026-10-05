@@ -13,7 +13,14 @@
  *
  * ONLY EVER POINT THIS AT THE DEMO STACK. It writes household data as real
  * members; there is nothing here that distinguishes a demo Heorth from a real
- * one but the URL you give it.
+ * one but the URL you give it. The one sanctioned exception is
+ * deploy/seed-dev.mjs, which runs this file against the dev stack on request
+ * with the two switches below set:
+ *
+ *   SEED_KEEP_HOUSEHOLD=1  do not rename/relocate the household
+ *   SEED_SKIP_GEWRIT=1     skip the Gewrit links (they assume the demo's fake
+ *                          Paperless; against a real one they would attach
+ *                          real documents to demo assets)
  *
  * WHY THE SEED LOGS IN TWICE:
  * Heorth's admin is the MAINTENANCE admin (src/household/maintenance-admin.ts).
@@ -30,6 +37,8 @@ const ADMIN_EMAIL = process.env.HEORTH_ADMIN_EMAIL ?? 'admin@demo.invalid';
 const ADMIN_PASSWORD = req('HEORTH_ADMIN_PASSWORD');
 const KITH_ADMIN_PASSWORD = req('KITH_ADMIN_PASSWORD');
 const MEMBER_PASSWORD = process.env.DEMO_MEMBER_PASSWORD ?? 'demo-member-pw';
+const KEEP_HOUSEHOLD = process.env.SEED_KEEP_HOUSEHOLD === '1';
+const SKIP_GEWRIT = process.env.SEED_SKIP_GEWRIT === '1';
 
 function req(name) {
   const v = process.env[name];
@@ -72,6 +81,23 @@ async function call(base, method, path, { token, body } = {}) {
 
 const heorth = (m, p, o) => call(HEORTH, m, p, o);
 const kith = (m, p, o) => call(KITH, m, p, o);
+
+/**
+ * Every row of a limit/offset listing. The natural-key lookups below must see
+ * the WHOLE table: a list endpoint answers 20 rows by default and 100 at most,
+ * so a lookup against the first page alone misses older rows once a stack
+ * holds more than that, and the seed re-creates them as duplicates.
+ */
+async function listAll(fn, path, token) {
+  const sep = path.includes('?') ? '&' : '?';
+  const rows = [];
+  for (let offset = 0; ; offset += 100) {
+    const page = (await fn('GET', `${path}${sep}limit=100&offset=${offset}`, { token })) ?? [];
+    const items = page.items ?? page;
+    rows.push(...items);
+    if (items.length < 100) return rows;
+  }
+}
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -146,11 +172,15 @@ async function seedHeorth() {
 
   // Household name/timezone/locale. timezone and locale are pick-from-list,
   // validated against GET /household/options.
-  await heorth('PATCH', '/api/v1/household', {
-    token: adminToken,
-    body: { name: 'Ashcombe Demo Household', timezone: 'Europe/Berlin', locale: 'de-DE' },
-  });
-  console.log('household settings applied');
+  if (KEEP_HOUSEHOLD) {
+    console.log('household settings left alone (SEED_KEEP_HOUSEHOLD=1)');
+  } else {
+    await heorth('PATCH', '/api/v1/household', {
+      token: adminToken,
+      body: { name: 'Ashcombe Demo Household', timezone: 'Europe/Berlin', locale: 'de-DE' },
+    });
+    console.log('household settings applied');
+  }
 
   // --- members (admin-only) ------------------------------------------------
   const existing = await heorth('GET', '/api/v1/members', { token: adminToken });
@@ -204,8 +234,8 @@ async function seedHeorth() {
     const [, verdict] = await ensure(
       `event ${e.title}`,
       async () => {
-        const found = await heorth('GET', '/api/v1/events', { token });
-        return (found ?? []).find((x) => x.title === e.title) ?? null;
+        const found = await listAll(heorth, '/api/v1/events', token);
+        return found.find((x) => x.title === e.title) ?? null;
       },
       async () =>
         heorth('POST', '/api/v1/events', {
@@ -290,7 +320,7 @@ async function seedHeorth() {
     },
   ];
 
-  const existingRecipes = (await heorth('GET', '/api/v1/recipes', { token })) ?? [];
+  const existingRecipes = await listAll(heorth, '/api/v1/recipes', token);
   const recipeByTitle = new Map((existingRecipes.items ?? existingRecipes).map((r) => [r.title, r]));
   const recipeId = {};
   for (const r of recipes) {
@@ -404,7 +434,7 @@ async function seedHeorth() {
     // the facility row below carries the second one.
     { name: 'PV inverter', category: 'energy', manufacturer: 'SolarEdge', model: 'SE5000H', serialNumber: 'SE-5000-31288', placeId: placeId['Garage'], purchaseDate: day(-300), purchasePrice: 1780, notes: 'Roof array, 4.2 kWp.' },
   ];
-  const existingAssets = (await heorth('GET', '/api/v1/ethel/assets?limit=100', { token })) ?? [];
+  const existingAssets = await listAll(heorth, '/api/v1/ethel/assets', token);
   const assetByName = new Map((existingAssets.items ?? existingAssets).map((a) => [a.name, a]));
   const assetId = {};
   for (const a of assets) {
@@ -492,7 +522,7 @@ async function seedHeorth() {
   // Skipped when a stack has Gewrit off, so the seed still runs against one
   // without it. Idempotent on (element, externalId, role).
   const features = await heorth('GET', '/api/v1/features', { token });
-  if (features?.gewrit) {
+  if (features?.gewrit && !SKIP_GEWRIT) {
     const documentLinks = [
       { externalId: '1', role: 'manual', assetId: assetId['Vaillant ecoTEC boiler'] },
       { externalId: '2', role: 'warranty', assetId: assetId['Vaillant ecoTEC boiler'] },
@@ -667,7 +697,7 @@ async function seedHeorth() {
     ],
   };
 
-  const existingTxns = (await heorth('GET', '/api/v1/feoh/transactions?limit=100', { token })) ?? [];
+  const existingTxns = await listAll(heorth, '/api/v1/feoh/transactions', token);
   const txnKeys = new Set((existingTxns.items ?? existingTxns).map((t) => `${t.date}|${t.payee}`));
   for (const t of [salary, ...txns]) {
     const [, verdict] = await ensure(
@@ -757,7 +787,7 @@ async function seedHeorth() {
   ];
   // `heorth()` returns the response's `data` only (never the status), so the
   // natural key is the prefixed source_id in a one-shot listing of the inbox.
-  const existingLines = (await heorth('GET', '/api/v1/feoh/ingestion/inbox?limit=100', { token })) ?? [];
+  const existingLines = await listAll(heorth, '/api/v1/feoh/ingestion/inbox', token);
   const lineBySource = new Map(existingLines.map((r) => [r.sourceId, r]));
   for (const l of lines) {
     const [, verdict] = await ensure(
@@ -794,7 +824,7 @@ async function seedKith() {
   const as = { token };
   console.log('logged in as the KithLedger admin');
 
-  const existing = (await kith('GET', '/api/v1/people?limit=100', { token })) ?? [];
+  const existing = await listAll(kith, '/api/v1/people', token);
   const byName = new Map((existing.items ?? existing).map((p) => [p.name, p]));
   const person = {};
 
@@ -828,7 +858,7 @@ async function seedKith() {
     { from: 'harriet', to: 'sam', type: 'acquaintance', label: 'met at our barbecue' },
     { from: 'colin', to: 'dev', type: 'acquaintance', label: 'recommended him to us' },
   ];
-  const existingRels = (await kith('GET', '/api/v1/relationships?limit=100', { token })) ?? [];
+  const existingRels = await listAll(kith, '/api/v1/relationships', token);
   const relKeys = new Set(
     (existingRels.items ?? existingRels).map((r) => `${r.fromPersonId}|${r.toPersonId}`)
   );
@@ -865,7 +895,7 @@ async function seedKith() {
     { who: 'ms-halloran', at: at(-1, 16), type: 'email', channel: 'email', sentiment: 'neutral', notes: 'Tobin’s lesson moved to 15:30 from now on.' },
     { who: 'gerald', at: at(-15, 14), type: 'meeting', channel: 'in-person', sentiment: 'positive', notes: 'Drove over for the afternoon.' },
   ];
-  const existingInts = (await kith('GET', '/api/v1/interactions?limit=100', { token })) ?? [];
+  const existingInts = await listAll(kith, '/api/v1/interactions', token);
   const intKeys = new Set(
     (existingInts.items ?? existingInts).map((i) => `${i.personId}|${i.occurredAt}`)
   );
@@ -900,7 +930,7 @@ async function seedKith() {
     { who: 'iris', dueAt: at(30, 9), title: 'Iris — birthday', kind: 'birthday', leadDays: 7 },
     { who: 'nadia', dueAt: at(45, 9), title: 'Nadia — birthday', kind: 'birthday', leadDays: 3 },
   ];
-  const existingRems = (await kith('GET', '/api/v1/reminders?limit=100', { token })) ?? [];
+  const existingRems = await listAll(kith, '/api/v1/reminders', token);
   const remTitles = new Set((existingRems.items ?? existingRems).map((r) => r.title));
   for (const r of reminders) {
     const [, verdict] = await ensure(
@@ -941,5 +971,7 @@ async function main() {
 main().catch((e) => {
   console.error(`\nseed failed: ${e.message}`);
   if (e.payload) console.error(JSON.stringify(e.payload, null, 2));
+  // fetch() reports a network failure as just "fetch failed"; the reason is in cause.
+  if (e.cause) console.error(e.cause);
   process.exit(1);
 });

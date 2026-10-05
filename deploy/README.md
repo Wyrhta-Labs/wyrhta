@@ -220,6 +220,24 @@ Two things the seed has to get right, both of which cost a debugging round:
 **Only ever point `seed-demo.mjs` at the demo stack.** Nothing in it
 distinguishes a demo Heorth from a real one but the URL it is given.
 
+### Sample data in the dev stack (on request)
+
+The one sanctioned exception: when the dev stack should look lived-in, fill it
+on purpose.
+
+```bash
+node deploy/seed-dev.mjs        # the demo household, against 14000/14002
+node deploy/seed-dev-bulk.mjs   # volume on top: months of history, ~1,000 rows
+```
+
+Both read `deploy/.env` themselves. `seed-dev.mjs` runs `seed-demo.mjs` with
+`SEED_KEEP_HOUSEHOLD=1` (the dev household keeps its name and locale) and
+`SEED_SKIP_GEWRIT=1` (dev talks to a real Paperless, where the demo's document
+ids would link real documents to demo assets). This **does** write into
+`heorth_dev` / `kithledger_dev`: four `@demo.invalid` members and their content
+land next to the real dev data. Both scripts are idempotent and never delete;
+the bulk script is anchored to a fixed date so a re-run adds nothing.
+
 ## First bring-up
 
 Feoh's finance module is built into Heorth (ADR 0007) and is **always on** —
