@@ -64,6 +64,7 @@ environment. The shared stack ports are:
 | heorth-mcp | 14003 | 24003 |
 | Firefly Data Importer | 14004 | — |
 | Postgres | 15432 | 25432 |
+| Test Postgres (`db-test`) | 15433 | — |
 
 Firefly III is the bank-ingestion sidecar (ADR 0016), and it takes the slot the
 retired Feoh satellite used to reserve. It runs in **dev and prod only**: the
@@ -73,7 +74,11 @@ is an operator tool for connecting banks, and Feoh remains the system of record.
 
 Container-internal ports stay conventional (`3000`, `3200`, `5432`, and `8080`
 for the two Firefly containers). Tests must
-use `_test` databases, never the dev databases. `deploy/.env` and
+use `_test` databases, never the dev databases, and those live on the separate,
+disposable test cluster on **15433** (`db-test`: tmpfs, no fsync, wiped on
+restart) — never on 15432, whose leftover `*_test` databases must stay unused
+(test churn there caused the minutes-long checkpoints behind the 20 s test
+timeouts; `deploy/README.md` → The test cluster). `deploy/.env` and
 `deploy/.env.demo` are ignored secret files: do not commit them and do not paste
 their contents. Demo scripts may read login values from `.env.demo`, but bearer
 tokens are process-local only and must not be saved.

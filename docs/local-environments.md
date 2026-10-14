@@ -19,6 +19,7 @@ defaults:
 | heorth-mcp | `14003` | `24003` |
 | Firefly Data Importer | `14004` | — |
 | Postgres | `15432` | `25432` |
+| Test Postgres (`db-test`) | `15433` | — |
 
 The `*001` slot used to be reserved for the retired Feoh satellite; Firefly III
 now occupies it in dev (ADR 0016). Inside containers, services still use normal
@@ -91,6 +92,7 @@ URLs:
 | heorth-mcp | `http://localhost:14003` |
 | Firefly Data Importer | `http://localhost:14004` |
 | Postgres | `localhost:15432` |
+| Test Postgres | `127.0.0.1:15433` |
 
 ### The bank-ingestion sidecar
 
@@ -134,11 +136,21 @@ The demo stack runs **neither** container. A demo reaches no external system
 leaving it unset — the same belt-and-braces the six `M365_*` vars get there.
 
 The dev services use `heorth_dev` and `kithledger_dev`, not the primary database
-names. Tests must use `_test` databases, for example:
+names. Tests must use `_test` databases, and those live on the separate test
+cluster `db-test` on **15433**, for example:
 
 ```powershell
-$env:DATABASE_URL='postgres://heorth:<password>@localhost:15432/heorth_test'
+$env:DATABASE_URL='postgres://heorth:<password>@127.0.0.1:15433/heorth_test'
 ```
+
+Use `127.0.0.1`, not `localhost`: on Windows `localhost` resolves to `::1`
+first, which WSL's relay answers instead of Docker Desktop, and it times out
+connections under a suite's connection churn.
+
+`db-test` is disposable on purpose — tmpfs data, `fsync` off — and is recreated
+empty on every restart; the suites migrate it themselves. Do not run tests
+against 15432: the per-test truncation churn there caused minutes-long
+checkpoints and 20 s test timeouts (`deploy/README.md` → The test cluster).
 
 Stop without deleting data:
 

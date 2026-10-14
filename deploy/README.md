@@ -25,6 +25,7 @@ conditionals.
 | `heorth-mcp` | 14003 | — (owns no data) |
 | `firefly-importer` | 14004 | — (owns no data) |
 | `db` | 15432 (dev only) | — |
+| `db-test` | 15433 (dev only) | `heorth_test`, `kithledger_test` — disposable |
 | `db-backup` | — | dumps `heorth` + `kithledger` |
 
 `firefly` and `firefly-importer` are the optional bank-ingestion sidecar
@@ -377,15 +378,16 @@ docker compose -f deploy/compose.prod.yml --env-file deploy/.env exec db \
   -c "REVOKE ALL ON DATABASE newsvc FROM PUBLIC;"
 ```
 
-The dev file also creates five extra databases: `heorth_test`,
-`kithledger_test`, and `heorth_dev`, `kithledger_dev`, `firefly_dev`.
+The dev file's `db` also creates three extra databases: `heorth_dev`,
+`kithledger_dev`, `firefly_dev`. The test databases live in a **separate
+cluster**, `db-test` — see [The test cluster](#the-test-cluster).
 
 ### Which database runs what, and why it matters
 
 | | dev (`compose.dev.yml`) | prod (`compose.prod.yml`) | tests |
 |---|---|---|---|
-| Heorth | `heorth_dev` | `heorth` | `heorth_test` |
-| KithLedger | `kithledger_dev` | `kithledger` | `kithledger_test` |
+| Heorth | `heorth_dev` | `heorth` | `heorth_test` (on `db-test`) |
+| KithLedger | `kithledger_dev` | `kithledger` | `kithledger_test` (on `db-test`) |
 | Firefly III | `firefly_dev` | `firefly` | — (no test suite runs against it) |
 
 **The dev services deliberately run against `*_dev`, not the primary databases.**
@@ -395,11 +397,56 @@ truncates every table when it does run. Naming the dev data `*_dev` is therefore
 what stops a stray `npm test` from wiping it — as happened once already
 (`../docs/manual-todo.md`, the dev-DB-wiped note).
 
-Point test suites at the `*_test` databases:
+Point test suites at the `*_test` databases **on the test cluster, port 15433**:
 
 ```bash
-export DATABASE_URL=postgres://heorth:<pw>@localhost:15432/heorth_test
+export DATABASE_URL=postgres://heorth:<pw>@127.0.0.1:15433/heorth_test
+export DATABASE_URL=postgres://kithledger:<pw>@127.0.0.1:15433/kithledger_test
 ```
+
+Same roles and passwords as the dev cluster (`HEORTH_DB_PASSWORD`,
+`KITH_DB_PASSWORD` in `deploy/.env`); only the port differs.
+
+**Use `127.0.0.1`, not `localhost`.** On Windows, Node resolves `localhost` to
+`::1` first, and `[::1]:<port>` is answered by WSL's `wslrelay.exe`, not by
+Docker Desktop's IPv4 listener. Under the burst of new connections a suite
+opens (KithLedger builds a fresh pool per test file), that relay stalls and
+connections fail with `CONNECT_TIMEOUT`. Measured on this machine: KithLedger
+right after a Heorth run failed 3 of 3 times via `localhost` and passed 2 of 2
+via `127.0.0.1`.
+
+### The test cluster
+
+`db-test` in `compose.dev.yml` is a second Postgres that holds nothing but
+`heorth_test` and `kithledger_test`. It exists because the suites `TRUNCATE`
+every table between tests, and every `TRUNCATE` gives each table and index a
+new file. When the test databases lived in the dev cluster, one Heorth run left
+~165,000 dirty files behind, and the next checkpoint spent minutes syncing them
+(measured up to 141 s) — long enough to stall every connection on the Docker
+host and time tests out at 20 s, `tests/integrations-migration.test.ts` most
+often.
+
+So the test cluster gives up durability entirely: its data directory is a
+**tmpfs**, and it runs with `fsync`, `synchronous_commit` and
+`full_page_writes` off and `wal_level=minimal`. Consequences:
+
+- **Disposable.** Every stop/start — including a Docker or host restart —
+  starts it from an empty data directory, and `initdb/10-databases.sh` recreates
+  the roles and the two `*_test` databases. The suites run their own
+  migrations, so that is all they need. Never put anything you want to keep on
+  15433.
+- **It starts with the default `up`**, not behind a profile, so tests always
+  have somewhere to go and nobody is tempted back to 15432. Nothing depends on
+  it. To (re)start just this one:
+  `docker compose -f deploy/compose.dev.yml --env-file deploy/.env up -d --wait db-test`.
+- **Do not run the suites against `db` (15432) any more.** A dev cluster created
+  before this split still contains `heorth_test` and `kithledger_test`. They are
+  left in place — nothing here deletes data from an existing volume — but
+  nothing should point at them; a single run there brings the long checkpoints
+  straight back, and they stall the test cluster too because both share the
+  Docker host's I/O. Drop them by hand if you like
+  (`DROP DATABASE heorth_test; DROP DATABASE kithledger_test;` as `postgres`
+  on the `db` service). A freshly initialised dev cluster no longer creates them.
 
 Do **not** point a test run at a primary database (`heorth`,
 `kithledger`). The current guard only rejects `_dev`, so a primary name passes it
@@ -418,8 +465,8 @@ is retired, nothing listens on 55432 at all, so those configs are stale and will
 fail to connect. Each service repo must update its own `.env` — and the credentials too:
 this cluster uses per-service roles
 (`postgres://<service>:<pw>@localhost:15432/<service>_dev`), not the old shared
-`kith:kithpw`. `Heorth/CLAUDE.md` also still documents the old
-`localhost:55432/heorth_test`.
+`kith:kithpw`. Test runs go to `127.0.0.1:15433/<service>_test` (the `db-test`
+cluster above), never to 15432.
 
 > The dev stack deliberately moved off the default Postgres port on 2026-08-25.
 > Keep the Compose file, this runbook, and the repo-local agent skills in sync

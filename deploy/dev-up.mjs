@@ -45,7 +45,9 @@ const DB_VOLUME = `${PROJECT}_db_data`;
 // (ADR 0016 — Firefly being down pauses the import and nothing else), and its
 // first boot runs Laravel migrations, so waiting on it would make the common
 // case slow for no benefit. Its status is reported, not awaited.
-const REQUIRED = ['db', 'kithledger', 'heorth', 'heorth-mcp'];
+// db-test (the disposable test-suite cluster) IS here: no service depends on it,
+// but a dev env whose tests cannot run is not up.
+const REQUIRED = ['db', 'db-test', 'kithledger', 'heorth', 'heorth-mcp'];
 
 const HTTP_PROBES = [
   ['Heorth', 'http://localhost:14000/health'],
@@ -598,6 +600,7 @@ async function main() {
   console.log(`    ${'Firefly'.padEnd(12)} ${'http://localhost:14001'.padEnd(40)} ${healthOf('firefly')}`);
   console.log(`    ${'Importer'.padEnd(12)} ${'http://localhost:14004'.padEnd(40)} ${healthOf('firefly-importer')}`);
   console.log(`    ${'Postgres'.padEnd(12)} ${'localhost:15432'.padEnd(40)} ${healthOf('db')}`);
+  console.log(`    ${'Test PG'.padEnd(12)} ${'127.0.0.1:15433 (*_test, disposable)'.padEnd(40)} ${healthOf('db-test')}`);
 
   console.log('');
   log('logins');

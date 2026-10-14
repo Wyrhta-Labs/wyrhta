@@ -135,6 +135,8 @@ See [`deploy/README.md`](deploy/README.md) for ports, databases, backups, and th
 production file. For the two local multi-service environments, see
 [`docs/local-environments.md`](docs/local-environments.md): dev uses
 `14000/14001/14002/14003/14004/15432`, and demo uses `24000/24002/24003/25432`.
+Server test suites run against the separate, disposable test Postgres on
+`15433` (`heorth_test`, `kithledger_test`), never against the dev cluster.
 `14001` and `14004` are Firefly III and its Data Importer, the optional
 bank-ingestion sidecar (ADR 0016), which the demo deliberately does not run.
 

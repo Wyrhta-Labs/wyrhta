@@ -20,7 +20,10 @@ against the shared dev Postgres cluster.
   service. Starting the compose stack from the meta repo does not transfer meta
   conventions into service code.
 - Never point tests at dev databases. The dev stack uses `heorth_dev` and
-  `kithledger_dev`; test suites need their own `_test` databases.
+  `kithledger_dev` on `db` (15432). Server test suites use `heorth_test` /
+  `kithledger_test` on the separate, disposable test cluster `db-test`
+  (**15433**) — never 15432, not even its leftover `*_test` databases: test
+  churn there causes minutes-long checkpoints that time tests out.
 - `deploy/dev-up.sh` may generate the LOCAL DEV secrets in `deploy/.env`, and
   may bootstrap Firefly's operator account and API token; that is what it is
   for. Never invent a production secret, and never invent an external
@@ -38,13 +41,36 @@ Firefly III   http://localhost:14001
 KithLedger    http://localhost:14002
 heorth-mcp    http://localhost:14003
 Importer      http://localhost:14004
-Postgres      localhost:15432
+Postgres      localhost:15432   (dev data, durable)
+Test Postgres 127.0.0.1:15433   (db-test: *_test only, tmpfs, wiped on restart)
 ```
 
 The services listen on `3000`, `3200` or `8080` inside containers, but the host
 ports above are what users and local tools hit. `14001`/`14004` are the optional
 Firefly bank-ingestion sidecar (ADR 0016); they exist in dev and prod only,
 never in the demo stack.
+
+## Running the server test suites
+
+Point `DATABASE_URL` at the test cluster, reading the password from
+`deploy/.env` without printing it. In Git Bash, from the service checkout:
+
+```bash
+set -a; . <(grep -E '^HEORTH_DB_PASSWORD=' ../deploy/.env); set +a
+export DATABASE_URL="postgres://heorth:${HEORTH_DB_PASSWORD}@127.0.0.1:15433/heorth_test"
+npx vitest run
+```
+
+Write `127.0.0.1`, not `localhost`: on Windows Node resolves `localhost` to
+`::1`, which WSL's `wslrelay.exe` answers instead of Docker Desktop, and under a
+suite's connection churn it stalls into `CONNECT_TIMEOUT` (KithLedger especially).
+
+KithLedger is the same with `KITH_DB_PASSWORD`, role `kithledger` and
+`kithledger_test`. `db-test` starts with the normal `up`; if it is not running,
+`docker compose -f deploy/compose.dev.yml --env-file deploy/.env up -d --wait db-test`
+starts just that service without touching the rest of the stack. Its data is on
+tmpfs: a restart re-creates empty `*_test` databases, which is all the suites
+need (they migrate themselves).
 
 ## Start
 

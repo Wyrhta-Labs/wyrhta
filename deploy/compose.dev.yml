@@ -7,7 +7,7 @@
 #
 #   docker compose -f deploy/compose.dev.yml --env-file deploy/.env up -d
 #
-# Host ports deliberately live in the 14xxx/15432 range so this stack does not
+# Host ports deliberately live in the 14xxx/154xx range so this stack does not
 # fight per-service defaults, unrelated local services, or Windows reserved
 # port ranges. Container-internal ports stay conventional.
 
@@ -27,7 +27,11 @@ services:
       # creates them instead, which is the manual step deploy/README.md
       # documents for adding a service to a live cluster.
       FIREFLY_DB_PASSWORD: ${FIREFLY_DB_PASSWORD:-}
-      CREATE_TEST_DATABASES: "true"
+      # heorth_dev / kithledger_dev / firefly_dev. The *_test databases live in
+      # `db-test` below, not here. A cluster created before that split still
+      # carries an unused heorth_test / kithledger_test; they are left alone
+      # (nothing deletes data in this volume) and nothing points at them.
+      CREATE_DEV_DATABASES: "true"
     volumes:
       # Postgres 18 sets PGDATA to /var/lib/postgresql/<major>/docker and
       # declares its volume one level up. Mounting /var/lib/postgresql/data
@@ -38,6 +42,85 @@ services:
     ports:
       - "15432:5432"
     healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # --- Test Postgres ---------------------------------------------------------
+  #
+  # The service repos' server suites (Heorth, KithLedger) TRUNCATE every table
+  # between tests. Run against `db`, that churn drove checkpoints syncing
+  # hundreds of thousands of files for minutes at a time, and any DB test could
+  # hit its 20 s timeout. So the *_test databases live here instead: a separate
+  # cluster with NO durability at all.
+  #
+  # DISPOSABLE BY DESIGN. Data sits on tmpfs, so every stop/start (and every
+  # Docker restart) begins from an empty data directory and initdb re-creates
+  # the roles and heorth_test / kithledger_test. The suites run their own
+  # migrations, so an empty database is all they need. fsync,
+  # synchronous_commit and full_page_writes are off — crash safety is
+  # irrelevant for data that does not outlive the container.
+  #
+  # Same roles and passwords as `db` (from deploy/.env), different port:
+  #   postgres://heorth:<HEORTH_DB_PASSWORD>@127.0.0.1:15433/heorth_test
+  #   postgres://kithledger:<KITH_DB_PASSWORD>@127.0.0.1:15433/kithledger_test
+  # 127.0.0.1, not localhost: on Windows localhost resolves to ::1, which WSL's
+  # relay answers, and it times connections out under test-suite churn.
+  #
+  # Starts with the default `up` on purpose, not behind a profile: the suites
+  # are run constantly, by people and agents, and a profile is one more thing
+  # to forget — the failure mode would be pointing tests back at `db`. It costs
+  # a few tens of MB of RAM. Nothing depends on it, so it never blocks the app
+  # services.
+  db-test:
+    image: postgres:18-alpine
+    command:
+      - postgres
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+      # Minimal WAL and rare checkpoints: the tmpfs is RAM, and there is
+      # nothing to recover after a crash anyway.
+      - -c
+      - wal_level=minimal
+      - -c
+      - max_wal_senders=0
+      - -c
+      - checkpoint_timeout=30min
+      - -c
+      - max_wal_size=512MB
+      # Parallel vitest workers each open their own pool.
+      - -c
+      - max_connections=200
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set it in deploy/.env}
+      HEORTH_DB_PASSWORD: ${HEORTH_DB_PASSWORD:?set it in deploy/.env}
+      KITH_DB_PASSWORD: ${KITH_DB_PASSWORD:?set it in deploy/.env}
+      # Roles plus heorth_test / kithledger_test only. No primary, no *_dev,
+      # no Firefly (FIREFLY_DB_PASSWORD is deliberately not passed).
+      CREATE_PRIMARY_DATABASES: "false"
+      CREATE_TEST_DATABASES: "true"
+    # Postgres 18's PGDATA is /var/lib/postgresql/18/docker; the tmpfs covers
+    # the parent the image declares as its volume, so no anonymous volume is
+    # created either.
+    tmpfs:
+      - /var/lib/postgresql:size=2g
+    shm_size: 256m
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "15433:5432"
+    healthcheck:
+      # -h 127.0.0.1: during initdb the entrypoint's temporary server listens
+      # on the unix socket only, so a TCP probe does not report ready before
+      # the test databases exist.
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
       interval: 5s
       timeout: 5s

@@ -44,7 +44,8 @@ _(`website` — the public site. Content reaches it one way, via the transfer do
 - **Dev port allocation** (so all services run side by side locally):
   Heorth API **14000** / web 5173 · retired Feoh slot **14001** · KithLedger API
   **14002** / web 5174 · heorth-mcp **14003**. Postgres: one local cluster on
-  **15432**, one database per service. Container-internal API ports stay 3000
+  **15432**, one database per service, plus a disposable test cluster on
+  **15433** that holds only the `*_test` databases. Container-internal API ports stay 3000
   or 3200; the allocation applies to host/dev ports.
 
 ## Settled (see strategy.md and ADRs)
